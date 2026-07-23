@@ -1,0 +1,137 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Be Vietnam Pro", system-ui, -apple-system, sans-serif;
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-3xl: calc(var(--radius) + 20px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 1rem;
+  /* Warm charcoal + peach — synced with /auth */
+  --background: oklch(0.17 0.012 50);
+  --foreground: oklch(0.94 0.014 75);
+  --surface: oklch(0.215 0.014 50);
+  --surface-2: oklch(0.255 0.016 50);
+  --card: oklch(0.215 0.014 50);
+  --card-foreground: oklch(0.94 0.014 75);
+  --popover: oklch(0.22 0.014 50);
+  --popover-foreground: oklch(0.94 0.014 75);
+  --primary: oklch(0.8 0.1 55);
+  --primary-foreground: oklch(0.24 0.04 45);
+  --secondary: oklch(0.26 0.014 50);
+  --secondary-foreground: oklch(0.94 0.014 75);
+  --muted: oklch(0.26 0.014 50);
+  --muted-foreground: oklch(0.7 0.018 65);
+  --accent: oklch(0.3 0.02 55);
+  --accent-foreground: oklch(0.94 0.014 75);
+  --destructive: oklch(0.66 0.2 28);
+  --destructive-foreground: oklch(0.99 0.005 90);
+  --border: oklch(1 0 0 / 7%);
+  --input: oklch(1 0 0 / 9%);
+  --ring: oklch(0.8 0.1 55 / 55%);
+}
+
+.light {
+  --background: oklch(0.975 0.008 80);
+  --foreground: oklch(0.22 0.02 50);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.955 0.01 80);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 50);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 50);
+  --primary: oklch(0.72 0.13 50);
+  --primary-foreground: oklch(0.2 0.04 45);
+  --secondary: oklch(0.94 0.012 80);
+  --secondary-foreground: oklch(0.22 0.02 50);
+  --muted: oklch(0.94 0.012 80);
+  --muted-foreground: oklch(0.48 0.02 60);
+  --accent: oklch(0.94 0.012 80);
+  --accent-foreground: oklch(0.22 0.02 50);
+  --border: oklch(0 0 0 / 8%);
+  --input: oklch(0 0 0 / 10%);
+  --ring: oklch(0.72 0.13 50 / 50%);
+}
+
+/* Serif display for brand marks */
+.font-serif-display {
+  font-family: "Instrument Serif", "Times New Roman", serif;
+  font-feature-settings: "liga", "kern";
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Custom thin scrollbar */
+@utility scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Ticket-stub perforation */
+.ticket-perf {
+  background-image: radial-gradient(
+    circle at 6px 50%,
+    var(--color-background) 4px,
+    transparent 4.5px
+  );
+  background-size: 14px 100%;
+  background-repeat: repeat-x;
+  background-position: center;
+}
