@@ -314,7 +314,9 @@ export async function sendFriendRequest(
   const supabase = getSupabase();
 
   // Guard: prevent self-friend-requests
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (user && user.id === userId) {
     throw new ApiError(400, "Bạn không thể tự kết bạn với chính mình.");
   }
