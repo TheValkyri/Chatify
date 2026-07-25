@@ -15,6 +15,7 @@ type DbConversation = {
   preview: string | null;
   unread: number;
   presence: string;
+  updated_at?: string;
   conversation_members?: DbMember[];
 };
 
@@ -39,12 +40,29 @@ export function mapMemberFromDb(row: DbMember): Member {
 }
 
 export function mapConversationFromDb(row: DbConversation): Conversation {
+  let time = "";
+  if (row.updated_at) {
+    const d = new Date(row.updated_at);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) {
+      time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    } else if (diffDays === 1) {
+      time = "Hôm qua";
+    } else if (diffDays < 7) {
+      time = d.toLocaleDateString("vi-VN", { weekday: "short" });
+    } else {
+      time = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+    }
+  }
+
   return {
     id: row.id,
     name: row.name,
     avatar: row.avatar ?? "",
     preview: row.preview ?? "",
-    time: "",
+    time,
     unread: row.unread ?? 0,
     presence: (row.presence as Conversation["presence"]) ?? "offline",
     isGroup: row.is_group,

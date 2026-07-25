@@ -1114,6 +1114,7 @@ export function MemberProfileModal({
   isFriend,
   onAddFriend,
   onStartChat,
+  currentUserId,
 }: {
   open: boolean;
   onClose: () => void;
@@ -1121,6 +1122,7 @@ export function MemberProfileModal({
   isFriend: boolean;
   onAddFriend: () => void;
   onStartChat: () => void;
+  currentUserId: string;
 }) {
   return (
     <ModalShell open={open} onClose={onClose} size="sm">
@@ -1164,7 +1166,7 @@ export function MemberProfileModal({
             )}
 
             <div className="mt-6 w-full flex gap-2">
-              {member.id !== "me" &&
+              {member.id !== currentUserId &&
                 (isFriend ? (
                   <button
                     type="button"
@@ -1247,14 +1249,16 @@ export function TransferOwnershipModal({
   onClose,
   conv,
   onConfirm,
+  currentUserId,
 }: {
   open: boolean;
   onClose: () => void;
   conv: Conversation | null;
   onConfirm: (targetMember: Member) => void;
+  currentUserId: string;
 }) {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const candidates = conv ? (conv.members || []).filter((m: Member) => m.id !== "me") : [];
+  const candidates = conv ? (conv.members || []).filter((m: Member) => m.id !== currentUserId) : [];
 
   useEffect(() => {
     if (open) {

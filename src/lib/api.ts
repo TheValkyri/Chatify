@@ -74,53 +74,32 @@ export async function createConversation(conv: Conversation): Promise<Conversati
 
   const supabase = getSupabase();
 
-  // 1. Chèn thô vào bảng conversations (không dùng .select() để tránh chạy SELECT policy khi chưa có thành viên)
-  const { error: insertError } = await supabase.from("conversations").insert({
-    id: conv.id,
-    name: conv.name,
-    avatar: conv.avatar,
-    is_group: conv.isGroup,
-    description: conv.description,
+  // Use atomic RPC to create conversation + members in a single transaction
+  const memberIds = conv.members.map((m) => m.id);
+  const memberRoles = conv.members.map((m) => m.role);
+
+  const { error: rpcError } = await supabase.rpc("create_conversation_atomic", {
+    p_id: conv.id,
+    p_name: conv.name,
+    p_avatar: conv.avatar,
+    p_is_group: conv.isGroup,
+    p_description: conv.description ?? "",
+    p_member_ids: memberIds,
+    p_member_roles: memberRoles,
   });
 
-  if (insertError) throw new ApiError(500, insertError.message);
+  if (rpcError) throw new ApiError(500, rpcError.message);
 
-  // 2. Insert members: Chèn owner trước để tránh vi phạm RLS policy cho các thành viên khác
-  if (conv.members.length > 0) {
-    const creator = conv.members.find((m) => m.role === "owner") || conv.members[0];
-    if (creator) {
-      const { error: creatorError } = await supabase.from("conversation_members").insert({
-        conversation_id: conv.id,
-        user_id: creator.id,
-        role: creator.role,
-      });
-      if (creatorError) throw new ApiError(500, creatorError.message);
-    }
-
-    const otherMembers = conv.members.filter((m) => m.id !== creator?.id);
-    if (otherMembers.length > 0) {
-      const memberRows = otherMembers.map((m) => ({
-        conversation_id: conv.id,
-        user_id: m.id,
-        role: m.role,
-      }));
-      const { error: membersError } = await supabase
-        .from("conversation_members")
-        .insert(memberRows);
-      if (membersError) throw new ApiError(500, membersError.message);
-    }
-  }
-
-  // 3. Bây giờ khi đã có thành viên, SELECT lại conversation để lấy dữ liệu đầy đủ từ DB (sẽ pass SELECT policy)
+  // SELECT back the fully-formed conversation
   const { data, error: selectError } = await supabase
     .from("conversations")
-    .select()
+    .select("*, conversation_members(user_id, role, profiles(name, avatar, username))")
     .eq("id", conv.id)
     .single();
 
   if (selectError) throw new ApiError(500, selectError.message);
 
-  return { ...conv, ...data };
+  return mapConversationFromDb(data);
 }
 
 export async function deleteConversation(convId: string): Promise<void> {
@@ -333,12 +312,25 @@ export async function sendFriendRequest(
   }
 
   const supabase = getSupabase();
+
+  // Guard: prevent self-friend-requests
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user && user.id === userId) {
+    throw new ApiError(400, "Bạn không thể tự kết bạn với chính mình.");
+  }
+
   const { error } = await supabase.from("friend_requests").insert({
     to_user_id: userId,
     message: message || null,
     status: "pending",
   });
-  if (error) throw new ApiError(500, error.message);
+  if (error) {
+    // Handle duplicate constraint gracefully
+    if (error.code === "23505") {
+      throw new ApiError(409, "Lời mời kết bạn đã được gửi trước đó.");
+    }
+    throw new ApiError(500, error.message);
+  }
   return { status: "pending" };
 }
 
@@ -401,39 +393,37 @@ export async function searchUsers(query: string): Promise<SearchResult | null> {
   // Production: search via Supabase
   const supabase = getSupabase();
 
-  // Check invite code
+  // Check invite code via secure RPC
   if (/^\d{10}$/.test(query)) {
-    const { data } = await supabase.from("invite_codes").select("*").eq("code", query).single();
+    const { data, error: rpcError } = await supabase.rpc("lookup_invite_code", { p_code: query });
 
-    if (data) {
-      if (data.expires_at && new Date() > new Date(data.expires_at)) {
+    if (rpcError) throw new ApiError(500, rpcError.message);
+    const row = Array.isArray(data) ? data[0] : data;
+
+    if (row) {
+      if (row.expires_at && new Date() > new Date(row.expires_at)) {
         throw new ApiError(410, "Mã mời này đã hết hạn sử dụng.");
       }
-      if (data.max_uses && data.uses >= data.max_uses) {
+      if (row.max_uses && row.uses >= row.max_uses) {
         throw new ApiError(410, "Mã mời này đã đạt giới hạn số lần sử dụng.");
       }
-      return { type: "group", name: data.group_name, groupId: data.group_id };
+      return { type: "group", name: row.group_name, groupId: row.group_id };
     }
     throw new ApiError(404, "Không tìm thấy nhóm ứng với mã mời này.");
   }
 
-  // Search by username, email, or phone
-  const escapedQuery = query.replace(/[,.()]/g, "\\$&");
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, name, username, phone, avatar")
-    .or(`username.ilike.%${escapedQuery}%,phone.eq.${escapedQuery}`)
-    .limit(1)
-    .single();
+  // Search by username or phone via secure RPC (doesn't expose phone/email to caller)
+  const { data, error } = await supabase.rpc("search_users", { p_query: query.replace("@", "") });
 
-  if (error || !data) return null;
+  if (error) throw new ApiError(500, error.message);
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
   return {
     type: "user",
-    id: data.id,
-    name: data.name,
-    username: data.username ? `@${data.username}` : undefined,
-    phone: data.phone,
-    avatar: data.avatar,
+    id: row.id,
+    name: row.name,
+    username: row.username ? `@${row.username}` : undefined,
+    avatar: row.avatar,
   };
 }
 
@@ -509,11 +499,15 @@ export async function generateInviteCode(
 export async function markMessagesAsRead(convId: string, userId: string): Promise<void> {
   if (IS_DEMO_MODE) return;
   const supabase = getSupabase();
+
+  // Only mark messages not authored by the current user and not already read
   const { data: messages, error } = await supabase
     .from("messages")
     .select("id")
     .eq("conversation_id", convId)
-    .neq("author_id", userId);
+    .neq("author_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(200);
 
   if (error || !messages?.length) return;
 
@@ -522,7 +516,10 @@ export async function markMessagesAsRead(convId: string, userId: string): Promis
     user_id: userId,
   }));
 
-  await supabase.from("message_reads").upsert(reads, { onConflict: "message_id,user_id" });
+  await supabase.from("message_reads").upsert(reads, {
+    onConflict: "message_id,user_id",
+    ignoreDuplicates: true,
+  });
 }
 
 export async function updateProfile(userId: string, updates: Partial<Profile>): Promise<void> {

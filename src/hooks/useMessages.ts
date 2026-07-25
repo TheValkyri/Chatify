@@ -80,13 +80,36 @@ export function useSendMessage(convId: string | null) {
 }
 
 /**
- * Hook to update a specific message in cache.
+ * Hook to update a specific message in cache AND persist attachment to DB.
  */
 export function useUpdateMessage(convId: string) {
   const queryClient = useQueryClient();
   return (messageId: string, patch: Partial<Message>) => {
+    // Always update local cache immediately
     queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) =>
       old?.map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
     );
+
+    // If the patch contains a final attachment with a non-blob URL, persist to DB
+    if (
+      patch.attachment &&
+      patch.status === "sent" &&
+      patch.attachment.url &&
+      !patch.attachment.url.startsWith("blob:")
+    ) {
+      import("@/lib/config").then(({ IS_DEMO_MODE }) => {
+        if (IS_DEMO_MODE) return;
+        import("@/lib/supabase").then(({ getSupabase }) => {
+          const supabase = getSupabase();
+          supabase
+            .from("messages")
+            .update({ attachment: patch.attachment })
+            .eq("id", messageId)
+            .then(({ error }) => {
+              if (error) console.error("Failed to persist attachment to DB:", error.message);
+            });
+        });
+      });
+    }
   };
 }

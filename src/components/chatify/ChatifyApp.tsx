@@ -357,7 +357,7 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
     const pair = gradientPairs[len % gradientPairs.length] || gradientPairs[0];
     const newAvatar = createAvatar(initials, pair[0], pair[1]);
 
-    const newId = isGroup ? `g_${Date.now()}` : `c_${Date.now()}`;
+    const newId = crypto.randomUUID();
     const selectedMembers: Member[] = [
       {
         id: session.id,
@@ -693,6 +693,7 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
         open={!!profileMember}
         onClose={() => setProfileMember(null)}
         member={profileMember}
+        currentUserId={session.id}
         isFriend={
           profileMember
             ? seedFriends.some((f) => f.name === profileMember.name) ||
@@ -710,7 +711,7 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
             if (existing) {
               setActiveId(existing.id);
             } else {
-              handleCreateConversation(profileMember.name, false, "online", "");
+              handleCreateConversation(profileMember.name, false, "online", "", [profileMember.id]);
             }
           }
         }}
@@ -727,6 +728,7 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
         open={!!transferOwnershipConv}
         onClose={() => setTransferOwnershipConv(null)}
         conv={transferOwnershipConv}
+        currentUserId={session.id}
         onConfirm={(targetMember) => {
           if (transferOwnershipConv) executeTransferAndLeave(transferOwnershipConv, targetMember);
         }}
@@ -2254,22 +2256,17 @@ function DetailPanel({
                 className="flex flex-col gap-1.5"
               >
                 {(() => {
-                  const members: Member[] = conv.isGroup
-                    ? conv.members || []
-                    : [
-                        {
-                          id: "them",
-                          name: conv.name,
-                          avatar: conv.avatar,
-                          role: "member" as const,
-                        },
-                        {
-                          id: session.id,
-                          name: session.name,
-                          avatar: session.avatar,
-                          role: "member" as const,
-                        },
-                      ];
+                  const members: Member[] =
+                    conv.members && conv.members.length > 0
+                      ? conv.members
+                      : [
+                          {
+                            id: session.id,
+                            name: session.name,
+                            avatar: session.avatar,
+                            role: "member" as const,
+                          },
+                        ];
                   const myMember = (conv.members || []).find((m) => m.id === session.id);
                   const isOwner = myMember?.role === "owner";
 
@@ -2521,9 +2518,9 @@ function CreateChatModal({
       setSearchVal("");
       setSearchResult(null);
       onClose();
-    } else {
+    } else if (searchResult.type === "user") {
       // Create user chat (Private conversation)
-      onCreate(searchResult.name, false, "online", "");
+      onCreate(searchResult.name, false, "online", "", [searchResult.id]);
       setSearchVal("");
       setSearchResult(null);
       onClose();
@@ -2540,7 +2537,7 @@ function CreateChatModal({
 
       // After success animation, add the friend to list and trigger callback
       setTimeout(() => {
-        onCreate(searchResult.name, false, "online", "");
+        onCreate(searchResult.name, false, "online", "", [searchResult.id]);
         onClose();
         if (onFriendRequestSuccess) {
           onFriendRequestSuccess();

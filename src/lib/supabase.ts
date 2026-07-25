@@ -47,6 +47,11 @@ export function getSupabaseSafe(): SupabaseClient | null {
  */
 export function getSupabaseServer(req: Request, resHeaders?: Headers) {
   return createServerClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    cookieOptions: {
+      secure: true,
+      sameSite: "lax" as const,
+      path: "/",
+    },
     cookies: {
       getAll() {
         const cookieHeader = req.headers.get("Cookie");
@@ -56,7 +61,7 @@ export function getSupabaseServer(req: Request, resHeaders?: Headers) {
             const parts = cookie.split("=");
             const name = parts[0]?.trim();
             const value = parts.slice(1).join("=").trim();
-            if (name) cookies.push({ name, value });
+            if (name) cookies.push({ name, value: decodeURIComponent(value) });
           });
         }
         return cookies;
