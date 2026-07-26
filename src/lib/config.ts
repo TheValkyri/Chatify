@@ -34,6 +34,14 @@ export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as strin
  * }
  * ```
  */
+// ─── Fail-Fast Production Validation ───────────────────────────────────────
+
+if (import.meta.env.PROD && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
+  throw new Error(
+    "FATAL: Môi trường Production bắt buộc phải cấu hình VITE_SUPABASE_URL và VITE_SUPABASE_ANON_KEY!",
+  );
+}
+
 export const IS_DEMO_MODE = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 
 // ─── Storage Keys (demo mode) ──────────────────────────────────────────────

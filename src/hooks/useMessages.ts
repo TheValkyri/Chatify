@@ -58,9 +58,10 @@ export function useSendMessage(convId: string | null) {
     onSuccess: (result, msg) => {
       if (!convId) return;
 
-      queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) =>
-        (old ?? []).map((m) => (m.id === msg.id ? { ...m, ...result, status: "sent" } : m)),
-      );
+      queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
+        if (!old) return [result];
+        return old.map((m) => (m.id === msg.id ? { ...result, status: "sent" } : m));
+      });
     },
 
     // On error: rollback to previous state

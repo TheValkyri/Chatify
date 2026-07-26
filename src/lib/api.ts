@@ -275,18 +275,12 @@ export async function transferOwnership(
   }
 
   const supabase = getSupabase();
-  // Transaction: set new owner, demote current
-  const { error: e1 } = await supabase
-    .from("conversation_members")
-    .update({ role: "owner" })
-    .match({ conversation_id: convId, user_id: newOwnerId });
-  if (e1) throw new ApiError(500, e1.message);
-
-  const { error: e2 } = await supabase
-    .from("conversation_members")
-    .update({ role: "member" })
-    .match({ conversation_id: convId, user_id: currentOwnerId });
-  if (e2) throw new ApiError(500, e2.message);
+  const { error } = await supabase.rpc("transfer_ownership_atomic", {
+    p_conv_id: convId,
+    p_new_owner_id: newOwnerId,
+    p_current_owner_id: currentOwnerId,
+  });
+  if (error) throw new ApiError(500, error.message);
 }
 
 // ─── Friends ────────────────────────────────────────────────────────────────
