@@ -116,7 +116,11 @@ export function MessageRow({
 
         <div className={`flex items-center gap-2.5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
           {!isMe && (
-            <div className="h-8 w-8 shrink-0 flex items-center justify-center">
+            <div
+              className={`h-8 w-8 shrink-0 flex items-center justify-center ${
+                isGroup && showAuthorName ? "translate-y-[3px]" : ""
+              }`}
+            >
               {showAvatar ? (
                 <UserAvatar
                   src={authorAvatar}
