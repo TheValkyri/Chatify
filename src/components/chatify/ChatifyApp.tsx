@@ -627,6 +627,8 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
                 isStranger={isStranger}
                 otherMemberName={otherMemberForActiveConv?.name}
                 onSendFriendRequest={handleSendFriendRequestToStranger}
+                members={activeConv.members}
+                isGroup={activeConv.isGroup}
               />
             </>
           ) : (

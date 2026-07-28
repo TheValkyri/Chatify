@@ -50,7 +50,7 @@ import type {
   AuthUser,
   Draft,
 } from "@/lib/types";
-import { LiquidTransition } from "./Modals";
+import { UserAvatar } from "./UserAvatar";
 import { AttachmentView } from "./helpers";
 import { fmtSize } from "./helpers";
 
@@ -58,10 +58,14 @@ export function MessageRow({
   m,
   onPreview,
   currentUserId,
+  members,
+  isGroup,
 }: {
   m: Message;
   onPreview: (att: Attachment) => void;
   currentUserId: string;
+  members?: Member[];
+  isGroup?: boolean;
 }) {
   if (m.text?.startsWith("📌 ") || m.author === "system") {
     const cleanText = m.text?.replace(/^📌\s*/, "") ?? "";
@@ -84,6 +88,10 @@ export function MessageRow({
   }
 
   const isMe = m.author === currentUserId;
+  const authorMember = members?.find((mem) => mem.id === m.author);
+  const authorName = authorMember?.name || (m.author === "system" ? "Hệ thống" : "Người dùng");
+  const authorAvatar = authorMember?.avatar || "";
+
   return (
     <motion.div
       layout
@@ -91,9 +99,22 @@ export function MessageRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={springSoft}
-      className={`flex w-full ${isMe ? "justify-end" : "justify-start"}`}
+      className={`flex w-full items-end gap-2.5 ${isMe ? "justify-end" : "justify-start"}`}
     >
+      {!isMe && (
+        <UserAvatar
+          src={authorAvatar}
+          name={authorName}
+          className="h-8 w-8 rounded-full mb-1 shrink-0 shadow-xs"
+          textClassName="text-[10px]"
+        />
+      )}
       <div className={`flex max-w-[560px] flex-col gap-1 ${isMe ? "items-end" : "items-start"}`}>
+        {!isMe && isGroup && (
+          <span className="px-1 text-[11px] font-semibold text-muted-foreground/80">
+            {authorName}
+          </span>
+        )}
         {m.text && !m.attachment && (
           <div
             className={`whitespace-pre-wrap rounded-[20px] px-4 py-2.5 text-[14.5px] leading-relaxed ${

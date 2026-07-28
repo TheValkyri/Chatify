@@ -65,6 +65,8 @@ export function ChatArea({
   isStranger,
   otherMemberName,
   onSendFriendRequest,
+  members,
+  isGroup,
 }: {
   conversationId: string;
   messages: Message[];
@@ -75,6 +77,8 @@ export function ChatArea({
   isStranger?: boolean;
   otherMemberName?: string;
   onSendFriendRequest?: () => void;
+  members?: Member[];
+  isGroup?: boolean;
 }) {
   const [text, setText] = useState("");
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -329,7 +333,14 @@ export function ChatArea({
           <DayDivider label="Hôm nay" />
           <AnimatePresence initial={false}>
             {messages.map((m) => (
-              <MessageRow key={m.id} m={m} onPreview={onPreview} currentUserId={currentUserId} />
+              <MessageRow
+                key={m.id}
+                m={m}
+                onPreview={onPreview}
+                currentUserId={currentUserId}
+                members={members}
+                isGroup={isGroup}
+              />
             ))}
           </AnimatePresence>
         </div>
