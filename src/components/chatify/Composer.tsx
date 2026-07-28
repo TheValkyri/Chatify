@@ -87,8 +87,8 @@ export function Composer({
   }, [text, taRef]);
 
   return (
-    <div className="shrink-0 px-6 pb-3 pt-1">
-      <div className="mx-auto max-w-3xl">
+    <div className="shrink-0 px-4 md:px-8 pb-3 pt-1">
+      <div className="mx-auto w-full max-w-4xl 2xl:max-w-5xl transition-all duration-300">
         <AnimatePresence>
           {drafts.length > 0 && (
             <motion.div

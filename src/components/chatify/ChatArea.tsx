@@ -328,20 +328,40 @@ export function ChatArea({
           )}
         </div>
       )}
-      <div ref={scrollRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        <div className="mx-auto flex max-w-3xl flex-col gap-3">
+      <div ref={scrollRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 md:px-8 py-6">
+        <div className="mx-auto flex w-full max-w-4xl 2xl:max-w-5xl flex-col transition-all duration-300">
           <DayDivider label="Hôm nay" />
           <AnimatePresence initial={false}>
-            {messages.map((m) => (
-              <MessageRow
-                key={m.id}
-                m={m}
-                onPreview={onPreview}
-                currentUserId={currentUserId}
-                members={members}
-                isGroup={isGroup}
-              />
-            ))}
+            {messages.map((m, idx) => {
+              const prevMsg = messages[idx - 1];
+              const nextMsg = messages[idx + 1];
+              const isSameAuthorAsPrev =
+                prevMsg &&
+                prevMsg.author === m.author &&
+                !prevMsg.text?.startsWith("📌 ") &&
+                prevMsg.author !== "system";
+              const isSameAuthorAsNext =
+                nextMsg &&
+                nextMsg.author === m.author &&
+                !nextMsg.text?.startsWith("📌 ") &&
+                nextMsg.author !== "system";
+
+              const showAuthorName = !isSameAuthorAsPrev;
+              const showAvatar = !isSameAuthorAsNext;
+
+              return (
+                <MessageRow
+                  key={m.id}
+                  m={m}
+                  onPreview={onPreview}
+                  currentUserId={currentUserId}
+                  members={members}
+                  isGroup={isGroup}
+                  showAuthorName={showAuthorName}
+                  showAvatar={showAvatar}
+                />
+              );
+            })}
           </AnimatePresence>
         </div>
       </div>

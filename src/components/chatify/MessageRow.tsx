@@ -60,12 +60,16 @@ export function MessageRow({
   currentUserId,
   members,
   isGroup,
+  showAuthorName = true,
+  showAvatar = true,
 }: {
   m: Message;
   onPreview: (att: Attachment) => void;
   currentUserId: string;
   members?: Member[];
   isGroup?: boolean;
+  showAuthorName?: boolean;
+  showAvatar?: boolean;
 }) {
   if (m.text?.startsWith("📌 ") || m.author === "system") {
     const cleanText = m.text?.replace(/^📌\s*/, "") ?? "";
@@ -99,19 +103,25 @@ export function MessageRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={springSoft}
-      className={`flex w-full items-end gap-2.5 ${isMe ? "justify-end" : "justify-start"}`}
+      className={`flex w-full items-end gap-2.5 ${isMe ? "justify-end" : "justify-start"} ${
+        showAuthorName ? "mt-2.5" : "mt-0.5"
+      }`}
     >
       {!isMe && (
-        <UserAvatar
-          src={authorAvatar}
-          name={authorName}
-          className="h-8 w-8 rounded-full mb-1 shrink-0 shadow-xs"
-          textClassName="text-[10px]"
-        />
+        <div className="h-8 w-8 shrink-0 flex items-end justify-center mb-0.5">
+          {showAvatar ? (
+            <UserAvatar
+              src={authorAvatar}
+              name={authorName}
+              className="h-8 w-8 rounded-full shadow-xs"
+              textClassName="text-[10px]"
+            />
+          ) : null}
+        </div>
       )}
-      <div className={`flex max-w-[560px] flex-col gap-1 ${isMe ? "items-end" : "items-start"}`}>
-        {!isMe && isGroup && (
-          <span className="px-1 text-[11px] font-semibold text-muted-foreground/80">
+      <div className={`flex max-w-[580px] flex-col gap-1 ${isMe ? "items-end" : "items-start"}`}>
+        {!isMe && isGroup && showAuthorName && (
+          <span className="px-1 text-[11.5px] font-semibold text-primary/90 leading-none mb-0.5 select-none">
             {authorName}
           </span>
         )}
