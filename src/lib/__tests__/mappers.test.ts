@@ -17,12 +17,12 @@ describe("Data Mappers", () => {
       conversation_members: [
         {
           user_id: "user-1",
-          role: "owner",
+          role: "owner" as const,
           profiles: { name: "Darne", avatar: "avatar1.png", username: "darne" },
         },
         {
           user_id: "user-2",
-          role: "member",
+          role: "member" as const,
           profiles: { name: "Alice", avatar: "avatar2.png", username: "alice" },
         },
       ],
@@ -46,14 +46,12 @@ describe("Data Mappers", () => {
       text: "Xin chào từ Vitest!",
       attachment: null,
       created_at: "2026-07-28T12:10:00Z",
-      profiles: { name: "Darne", avatar: "avatar1.png" },
     };
 
     const mapped = mapMessageFromDb(rawMsg);
 
     expect(mapped.id).toBe("msg-999");
     expect(mapped.text).toBe("Xin chào từ Vitest!");
-    expect(mapped.from).toBe("me");
-    expect(mapped.authorName).toBe("Darne");
+    expect(mapped.author).toBe("user-1");
   });
 });

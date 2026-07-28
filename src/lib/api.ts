@@ -337,14 +337,17 @@ export async function sendFriendRequest(
 // ─── Search ─────────────────────────────────────────────────────────────────
 
 export async function searchUsers(query: string): Promise<SearchResult | null> {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+
   if (IS_DEMO_MODE) {
     // Demo: simulate basic search
-    const lowerQuery = query.toLowerCase().replace(/\s+/g, "");
+    const lowerQuery = trimmed.toLowerCase().replace(/\s+/g, "");
 
-    // Check invite codes first
-    if (/^\d{10}$/.test(query)) {
+    // Check invite codes first (accepts 10-character alphanumeric codes or 10 digits)
+    if (/^[a-zA-Z0-9]{10}$/.test(trimmed)) {
       const registry = demoGet<Record<string, InviteCode>>(STORAGE_KEYS.INVITE_CODES, {});
-      const invite = registry[query];
+      const invite = registry[trimmed] || registry[lowerQuery];
       if (invite) {
         if (invite.expires && Date.now() > invite.expires) {
           throw new ApiError(410, "Mã mời này đã hết hạn sử dụng.");
@@ -354,7 +357,6 @@ export async function searchUsers(query: string): Promise<SearchResult | null> {
         }
         return { type: "group", name: invite.groupName, groupId: invite.groupId };
       }
-      throw new ApiError(404, "Không tìm thấy nhóm ứng với mã mời này.");
     }
 
     // Demo mock user search
@@ -372,48 +374,49 @@ export async function searchUsers(query: string): Promise<SearchResult | null> {
       };
     }
 
-    if (query.startsWith("@") || query.length >= 3) {
-      const isPhone = /^[0-9+]+$/.test(query);
+    if (trimmed.startsWith("@") || trimmed.length >= 3) {
+      const isPhone = /^[0-9+]+$/.test(trimmed);
       const displayName = isPhone
-        ? `Số điện thoại ${query}`
-        : query.replace("@", "").charAt(0).toUpperCase() + query.replace("@", "").slice(1);
+        ? `Số điện thoại ${trimmed}`
+        : trimmed.replace("@", "").charAt(0).toUpperCase() + trimmed.replace("@", "").slice(1);
 
       return {
         type: "user",
         id: `demo_search_${Date.now()}`,
         name: displayName,
-        username: isPhone ? undefined : query.startsWith("@") ? query : `@${query}`,
-        phone: isPhone ? query : undefined,
+        username: isPhone ? undefined : trimmed.startsWith("@") ? trimmed : `@${trimmed}`,
+        phone: isPhone ? undefined : trimmed,
       } as SearchResultUser;
     }
 
-    throw new ApiError(400, "Vui lòng nhập mã mời 10 chữ số, @username hoặc số điện thoại.");
+    throw new ApiError(400, "Vui lòng nhập mã mời 10 ký tự, @username hoặc số điện thoại.");
   }
 
   // Production: search via Supabase
   const supabase = getSupabase();
 
-  // Check invite code via secure RPC
-  if (/^\d{10}$/.test(query)) {
-    const { data, error: rpcError } = await supabase.rpc("lookup_invite_code", { p_code: query });
+  // Check invite code via secure RPC if query is 10 alphanumeric characters
+  if (/^[a-zA-Z0-9]{10}$/.test(trimmed)) {
+    const { data: inviteData, error: rpcError } = await supabase.rpc("lookup_invite_code", {
+      p_code: trimmed,
+    });
 
-    if (rpcError) throw new ApiError(500, rpcError.message);
-    const row = Array.isArray(data) ? data[0] : data;
-
-    if (row) {
-      if (row.expires_at && new Date() > new Date(row.expires_at)) {
-        throw new ApiError(410, "Mã mời này đã hết hạn sử dụng.");
+    if (!rpcError && inviteData) {
+      const row = Array.isArray(inviteData) ? inviteData[0] : inviteData;
+      if (row && row.group_id) {
+        if (row.expires_at && new Date() > new Date(row.expires_at)) {
+          throw new ApiError(410, "Mã mời này đã hết hạn sử dụng.");
+        }
+        if (row.max_uses && row.uses >= row.max_uses) {
+          throw new ApiError(410, "Mã mời này đã đạt giới hạn số lần sử dụng.");
+        }
+        return { type: "group", name: row.group_name, groupId: row.group_id };
       }
-      if (row.max_uses && row.uses >= row.max_uses) {
-        throw new ApiError(410, "Mã mời này đã đạt giới hạn số lần sử dụng.");
-      }
-      return { type: "group", name: row.group_name, groupId: row.group_id };
     }
-    throw new ApiError(404, "Không tìm thấy nhóm ứng với mã mời này.");
   }
 
   // Search by username or phone via secure RPC (doesn't expose phone/email to caller)
-  const { data, error } = await supabase.rpc("search_users", { p_query: query.replace("@", "") });
+  const { data, error } = await supabase.rpc("search_users", { p_query: trimmed.replace("@", "") });
 
   if (error) throw new ApiError(500, error.message);
   const row = Array.isArray(data) ? data[0] : null;

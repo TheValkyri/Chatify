@@ -25,14 +25,18 @@ export function useRealtimeMessages(convId: string | null) {
         },
         (payload: { eventType: string; new: Record<string, unknown> }) => {
           if (payload.eventType === "INSERT") {
-            const incoming = mapMessageFromDb(payload.new);
+            const incoming = mapMessageFromDb(
+              payload.new as unknown as Parameters<typeof mapMessageFromDb>[0],
+            );
             queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
               if (!old) return [incoming];
               if (old.some((m) => m.id === incoming.id)) return old; // tránh trùng với optimistic update của chính mình
               return [...old, incoming];
             });
           } else if (payload.eventType === "UPDATE") {
-            const incoming = mapMessageFromDb(payload.new);
+            const incoming = mapMessageFromDb(
+              payload.new as unknown as Parameters<typeof mapMessageFromDb>[0],
+            );
             queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
               if (!old) return old;
               return old.map((m) => (m.id === incoming.id ? { ...m, ...incoming } : m));
