@@ -334,20 +334,14 @@ export function ChatArea({
           <AnimatePresence initial={false}>
             {messages.map((m, idx) => {
               const prevMsg = messages[idx - 1];
-              const nextMsg = messages[idx + 1];
               const isSameAuthorAsPrev =
                 prevMsg &&
                 prevMsg.author === m.author &&
                 !prevMsg.text?.startsWith("📌 ") &&
                 prevMsg.author !== "system";
-              const isSameAuthorAsNext =
-                nextMsg &&
-                nextMsg.author === m.author &&
-                !nextMsg.text?.startsWith("📌 ") &&
-                nextMsg.author !== "system";
 
               const showAuthorName = !isSameAuthorAsPrev;
-              const showAvatar = !isSameAuthorAsNext;
+              const showAvatar = !isSameAuthorAsPrev;
 
               return (
                 <MessageRow

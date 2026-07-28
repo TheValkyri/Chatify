@@ -103,12 +103,16 @@ export function MessageRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={springSoft}
-      className={`flex w-full items-end gap-2.5 ${isMe ? "justify-end" : "justify-start"} ${
-        showAuthorName ? "mt-2.5" : "mt-0.5"
+      className={`flex w-full items-start gap-2.5 ${isMe ? "justify-end" : "justify-start"} ${
+        showAuthorName ? "mt-3" : "mt-0.5"
       }`}
     >
       {!isMe && (
-        <div className="h-8 w-8 shrink-0 flex items-end justify-center mb-0.5">
+        <div
+          className={`h-8 w-8 shrink-0 flex items-center justify-center ${
+            isGroup && showAuthorName ? "mt-4.5" : "mt-0"
+          }`}
+        >
           {showAvatar ? (
             <UserAvatar
               src={authorAvatar}
