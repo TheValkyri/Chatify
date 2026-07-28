@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
 import { AnimatePresence, motion } from "framer-motion";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Search,
   Phone,
@@ -49,7 +49,7 @@ import {
   type OriginalFile,
 } from "@/lib/file-transfer";
 import { toast } from "sonner";
-import { STORAGE_KEYS } from "@/lib/config";
+import { STORAGE_KEYS, IS_DEMO_MODE } from "@/lib/config";
 import {
   useConversations,
   useCreateConversation,
@@ -73,6 +73,7 @@ import {
   incrementInviteUsage,
   fetchProfilesByIds,
   fetchProfile,
+  fetchIncomingFriendRequests,
 } from "@/lib/api";
 import { uploadFile, buildAttachment } from "@/lib/upload";
 import { THEMES, applyTheme, type ThemeDef } from "./themes";
@@ -86,6 +87,7 @@ import { MessageRow } from "./MessageRow";
 import { PreviewModal } from "./PreviewModal";
 import { SystemResetModal } from "./SystemResetModal";
 import { CreateChatModal } from "./CreateChatModal";
+import { UserAvatar } from "./UserAvatar";
 import {
   ProfileModal,
   SettingsModal,
@@ -306,6 +308,43 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
   };
 
   const activeConv = mappedConvs.find((c) => c.id === activeId);
+
+  const { data: incomingFriendRequests = [] } = useQuery({
+    queryKey: ["friend-requests", "incoming"],
+    queryFn: fetchIncomingFriendRequests,
+    refetchInterval: 5000,
+    enabled: !IS_DEMO_MODE,
+  });
+
+  const unreadNotificationsCount =
+    notifications.filter((n) => n.unread).length + incomingFriendRequests.length;
+
+  const otherMemberForActiveConv = useMemo(() => {
+    if (!activeConv || activeConv.isGroup) return undefined;
+    return activeConv.members.find((m) => m.id !== session.id);
+  }, [activeConv, session.id]);
+
+  const isStranger = useMemo(() => {
+    if (!activeConv || activeConv.isGroup || !otherMemberForActiveConv) return false;
+    const friendList = dbFriends || [];
+    const isAlreadyFriend =
+      friendList.some(
+        (f) =>
+          f.id === otherMemberForActiveConv.id ||
+          f.name.toLowerCase() === otherMemberForActiveConv.name.toLowerCase(),
+      ) || addedFriendNames.includes(otherMemberForActiveConv.name);
+    return !isAlreadyFriend;
+  }, [activeConv, otherMemberForActiveConv, dbFriends, addedFriendNames]);
+
+  const handleSendFriendRequestToStranger = async () => {
+    if (!otherMemberForActiveConv) return;
+    try {
+      await sendFriendRequest(otherMemberForActiveConv.id, "Chào bạn, mình kết bạn nhé!");
+      toast.success(`Đã gửi lời mời kết bạn tới ${otherMemberForActiveConv.name}!`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không thể gửi lời mời kết bạn.");
+    }
+  };
 
   const sendMessage = (msg: Message) => {
     sendMessageMutation.mutate(msg);
@@ -545,7 +584,7 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
           onOpen={setModal}
           onToggleSidebar={() => setShowSidebar((s) => !s)}
           sidebarOpen={showSidebar}
-          unreadNotifications={notifications.filter((notification) => notification.unread).length}
+          unreadNotifications={unreadNotificationsCount}
           onSignOut={onSignOut}
         />
         <AnimatePresence initial={false}>
@@ -581,6 +620,9 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
                 onPreview={setPreviewAttachment}
                 updateMessage={updateMessage}
                 currentUserId={session.id}
+                isStranger={isStranger}
+                otherMemberName={otherMemberForActiveConv?.name}
+                onSendFriendRequest={handleSendFriendRequestToStranger}
               />
             </>
           ) : (
@@ -762,10 +804,23 @@ function Rail({
   onSignOut: () => void;
 }) {
   const items = [
-    { icon: MessageSquare, label: "Tin nhắn", active: true, onClick: () => {} },
-    { icon: Users, label: "Bạn bè", active: false, onClick: () => onOpen("friends") },
-    { icon: Settings, label: "Cài đặt", active: false, onClick: () => onOpen("settings") },
-  ] as const;
+    { icon: MessageSquare, label: "Tin nhắn", active: true, badge: 0, onClick: () => {} },
+    {
+      icon: Bell,
+      label: "Thông báo",
+      active: false,
+      badge: unreadNotifications,
+      onClick: () => onOpen("notifications"),
+    },
+    { icon: Users, label: "Bạn bè", active: false, badge: 0, onClick: () => onOpen("friends") },
+    {
+      icon: Settings,
+      label: "Cài đặt",
+      active: false,
+      badge: 0,
+      onClick: () => onOpen("settings"),
+    },
+  ];
 
   return (
     <aside className="relative flex w-[76px] shrink-0 flex-col items-center gap-1 border-r border-border bg-background/60 py-5 backdrop-blur-xl">
@@ -800,6 +855,7 @@ function Rail({
               : "text-muted-foreground hover:bg-surface hover:text-foreground"
           }`}
           aria-label={it.label}
+          title={it.label}
         >
           {it.active && (
             <motion.span
@@ -808,6 +864,11 @@ function Rail({
             />
           )}
           <it.icon size={19} strokeWidth={2} />
+          {it.badge > 0 && (
+            <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground shadow-xs animate-pulse">
+              {it.badge}
+            </span>
+          )}
         </motion.button>
       ))}
 
@@ -819,12 +880,9 @@ function Rail({
         onClick={() => onOpen("profile")}
         className="relative mt-1 overflow-hidden rounded-full ring-2 ring-primary/40 hover:ring-primary transition-shadow"
         aria-label="Hồ sơ"
+        title="Hồ sơ cá nhân"
       >
-        <img
-          src={profile.avatar}
-          alt={profile.name}
-          className="h-10 w-10 rounded-full object-cover"
-        />
+        <UserAvatar src={profile.avatar} name={profile.name} className="h-10 w-10 rounded-full" />
       </motion.button>
       <motion.button
         whileHover={{ scale: 1.06 }}

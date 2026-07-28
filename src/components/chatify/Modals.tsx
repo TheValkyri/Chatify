@@ -27,7 +27,9 @@ import { THEMES, type ThemeDef } from "./themes";
 import type { Profile, Notification, Friend, Member, Conversation } from "@/lib/types";
 import { generateInviteCode, fetchIncomingFriendRequests } from "@/lib/api";
 import { uploadFile } from "@/lib/upload";
+import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
 import { useRespondToFriendRequest } from "@/hooks/useFriends";
+import { UserAvatar } from "./UserAvatar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IS_DEMO_MODE } from "@/lib/config";
 import { toast } from "sonner";
@@ -531,12 +533,10 @@ export function NotificationsModal({
                   }}
                   className="flex items-center gap-3 rounded-2xl bg-surface-2 p-3 hover:bg-surface-3 transition-colors"
                 >
-                  <img
-                    src={
-                      r.fromAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${r.fromName}`
-                    }
-                    alt={r.fromName}
-                    className="h-10 w-10 rounded-full object-cover"
+                  <UserAvatar
+                    src={r.fromAvatar}
+                    name={r.fromName}
+                    className="h-10 w-10 rounded-full"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-[13.5px] font-semibold truncate">{r.fromName}</div>
@@ -680,7 +680,12 @@ export function FriendsModal({
             className="group flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-surface-2"
           >
             <div className="relative">
-              <img src={f.avatar} alt={f.name} className="h-11 w-11 rounded-full" />
+              <UserAvatar
+                src={f.avatar}
+                name={f.name}
+                className="h-11 w-11 rounded-full"
+                textClassName="text-sm"
+              />
               {f.online && (
                 <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-surface bg-emerald-400" />
               )}
@@ -1131,10 +1136,11 @@ export function MemberProfileModal({
           <div className="relative">
             <div className="h-28 w-full bg-gradient-to-r from-primary/30 to-secondary/30" />
             <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-              <img
+              <UserAvatar
                 src={member.avatar}
-                alt={member.name}
-                className="h-20 w-20 rounded-full border-4 border-surface object-cover bg-surface-2"
+                name={member.name}
+                className="h-20 w-20 rounded-full border-4 border-surface shadow-md"
+                textClassName="text-2xl"
               />
             </div>
           </div>
@@ -1288,7 +1294,7 @@ export function TransferOwnershipModal({
                     : "border-transparent bg-surface-2 hover:bg-surface-3"
                 }`}
               >
-                <img src={m.avatar} alt={m.name} className="h-9 w-9 rounded-full object-cover" />
+                <UserAvatar src={m.avatar} name={m.name} className="h-9 w-9 rounded-full" />
                 <div className="flex-1 min-w-0">
                   <div className="text-[13.5px] font-semibold truncate">{m.name}</div>
                   <div className="text-[11px] text-muted-foreground truncate">

@@ -50,7 +50,7 @@ import type {
   AuthUser,
   Draft,
 } from "@/lib/types";
-import { LiquidTransition } from "./Modals";
+import { UserAvatar } from "./UserAvatar";
 
 export function ChatHeader({
   conv,
@@ -65,14 +65,10 @@ export function ChatHeader({
   onCall: (kind: "voice" | "video") => void;
   onInvite: () => void;
 }) {
-  const isGroup =
-    conv.isGroup ||
-    String(conv.id).startsWith("") ||
-    conv.name?.includes("Nhóm") ||
-    conv.name?.includes("Đội");
+  const isGroup = Boolean(conv.isGroup);
   return (
     <header className="flex h-[68px] shrink-0 items-center gap-3 border-b border-border px-6">
-      <img src={conv.avatar} alt={conv.name} className="h-10 w-10 rounded-full" />
+      <UserAvatar src={conv.avatar} name={conv.name} className="h-10 w-10 rounded-full" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[15px] font-semibold">{conv.name}</div>
         <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">

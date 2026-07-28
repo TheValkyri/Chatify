@@ -51,6 +51,7 @@ import type {
   Draft,
 } from "@/lib/types";
 import { LiquidTransition } from "./Modals";
+import { UserAvatar } from "./UserAvatar";
 
 export function Sidebar({
   convs,
@@ -175,7 +176,12 @@ export function Sidebar({
                     />
                   )}
                   <div className="relative">
-                    <img src={c.avatar} alt={c.name} className="h-12 w-12 rounded-full" />
+                    <UserAvatar
+                      src={c.avatar}
+                      name={c.name}
+                      className="h-12 w-12 rounded-full"
+                      textClassName="text-sm"
+                    />
                     {c.presence === "online" && (
                       <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-emerald-400" />
                     )}

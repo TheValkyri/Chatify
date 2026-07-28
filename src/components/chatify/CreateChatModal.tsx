@@ -54,6 +54,7 @@ import { LiquidTransition } from "./Modals";
 import { searchUsers, joinViaInviteCode, sendFriendRequest } from "@/lib/api";
 import { ModalField } from "./helpers";
 import { ModalShell, ModalHeader } from "./Modals";
+import { UserAvatar } from "./UserAvatar";
 
 export function CreateChatModal({
   open,
@@ -332,10 +333,10 @@ export function CreateChatModal({
                                 }}
                                 className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                               />
-                              <img
+                              <UserAvatar
                                 src={f.avatar}
-                                className="h-6 w-6 rounded-full object-cover"
-                                alt={f.name}
+                                name={f.name}
+                                className="h-6 w-6 rounded-full"
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="text-[13.5px] font-medium truncate">{f.name}</div>

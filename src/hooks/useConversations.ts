@@ -47,10 +47,14 @@ export function useCreateConversation() {
         if (!old) return [newConv];
         return [...old, newConv];
       });
-      toast.success("Đã tạo nhóm thành công!");
+      if (newConv.isGroup) {
+        toast.success("Đã tạo nhóm thành công!");
+      } else {
+        toast.success("Đã mở cuộc trò chuyện!");
+      }
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Không thể tạo nhóm chat.");
+      toast.error(err instanceof Error ? err.message : "Không thể tạo cuộc trò chuyện.");
     },
   });
 }

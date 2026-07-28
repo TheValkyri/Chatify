@@ -50,9 +50,8 @@ import type {
   AuthUser,
   Draft,
 } from "@/lib/types";
-import { LiquidTransition } from "./Modals";
+import { UserAvatar } from "./UserAvatar";
 import { EmptyHint, MediaGridItem, MemberRowActions } from "./helpers";
-import { fmtSize } from "./helpers";
 
 export function DetailPanel({
   conv,
@@ -71,11 +70,7 @@ export function DetailPanel({
   onLeaveGroup: () => void;
   session: AuthUser;
 }) {
-  const isGroup =
-    conv.isGroup ||
-    String(conv.id).startsWith("") ||
-    conv.name?.includes("Nhóm") ||
-    conv.name?.includes("Đội");
+  const isGroup = Boolean(conv.isGroup);
   const [tab, setTab] = useState<"media" | "files" | "members">("media");
   const media = messages.filter(
     (m) => m.attachment?.kind === "image" || m.attachment?.kind === "video",
@@ -113,10 +108,11 @@ export function DetailPanel({
           transition={{ delay: 0.05, ...springSoft }}
           className="flex flex-col items-center gap-3 px-6 pb-4 pt-8"
         >
-          <img
+          <UserAvatar
             src={conv.avatar}
-            alt={conv.name}
+            name={conv.name}
             className="h-20 w-20 rounded-full animate-pop-punch"
+            textClassName="text-2xl"
           />
           <div className="text-center">
             <div className="text-[16px] font-semibold">{conv.name}</div>
@@ -291,10 +287,10 @@ export function DetailPanel({
                           onClick={() => onViewProfile(m)}
                           className="flex items-center gap-3 rounded-xl bg-surface px-3 py-2.5 cursor-pointer hover:bg-surface-2 transition-all"
                         >
-                          <img
+                          <UserAvatar
                             src={m.avatar}
-                            alt={m.name}
-                            className="h-9 w-9 rounded-full object-cover"
+                            name={m.name}
+                            className="h-9 w-9 rounded-full"
                           />
                           <div className="flex flex-col min-w-0 flex-1">
                             <div className="text-[13px] font-medium flex items-center gap-1.5 truncate">

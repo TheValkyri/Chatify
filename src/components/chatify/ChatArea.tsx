@@ -62,6 +62,9 @@ export function ChatArea({
   onPreview,
   updateMessage,
   currentUserId,
+  isStranger,
+  otherMemberName,
+  onSendFriendRequest,
 }: {
   conversationId: string;
   messages: Message[];
@@ -69,6 +72,9 @@ export function ChatArea({
   onPreview: (att: Attachment) => void;
   updateMessage: (id: string, patch: Partial<Message>) => void;
   currentUserId: string;
+  isStranger?: boolean;
+  otherMemberName?: string;
+  onSendFriendRequest?: () => void;
 }) {
   const [text, setText] = useState("");
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -300,6 +306,24 @@ export function ChatArea({
         addEntries(files, containsDirectory);
       }}
     >
+      {isStranger && (
+        <div className="flex items-center justify-between gap-3 bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 text-[13px] text-amber-500 shrink-0 select-none">
+          <div className="flex items-center gap-2 font-medium">
+            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider">
+              Người lạ
+            </span>
+            <span>Bạn và {otherMemberName || "người này"} chưa phải là bạn bè trên Chatify.</span>
+          </div>
+          {onSendFriendRequest && (
+            <button
+              onClick={onSendFriendRequest}
+              className="rounded-full bg-amber-500 px-3.5 py-1 text-[12px] font-semibold text-black hover:bg-amber-400 transition-colors shrink-0 shadow-xs"
+            >
+              + Kết bạn
+            </button>
+          )}
+        </div>
+      )}
       <div ref={scrollRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto flex max-w-3xl flex-col gap-3">
           <DayDivider label="Hôm nay" />
