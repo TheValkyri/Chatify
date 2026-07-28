@@ -72,6 +72,7 @@ import {
   updateProfile,
   incrementInviteUsage,
   fetchProfilesByIds,
+  fetchProfile,
 } from "@/lib/api";
 import { uploadFile, buildAttachment } from "@/lib/upload";
 import { THEMES, applyTheme, type ThemeDef } from "./themes";
@@ -83,6 +84,7 @@ import { Composer } from "./Composer";
 import { DetailPanel } from "./DetailPanel";
 import { MessageRow } from "./MessageRow";
 import { PreviewModal } from "./PreviewModal";
+import { SystemResetModal } from "./SystemResetModal";
 import { CreateChatModal } from "./CreateChatModal";
 import {
   ProfileModal,
@@ -173,6 +175,24 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
     kind: "voice" | "video";
   } | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [isSystemResetOpen, setIsSystemResetOpen] = useState(false);
+
+  // Verify profile & backend data integrity on mount
+  useEffect(() => {
+    if (session.id) {
+      fetchProfile(session.id)
+        .then((p) => {
+          if (!p) {
+            setIsSystemResetOpen(true);
+          } else {
+            setProfile(p);
+          }
+        })
+        .catch(() => {
+          setIsSystemResetOpen(true);
+        });
+    }
+  }, [session.id]);
 
   // Sync activeId to local storage
   useEffect(() => {
@@ -684,6 +704,17 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
         open={!!previewAttachment}
         onClose={() => setPreviewAttachment(null)}
         att={previewAttachment}
+      />
+
+      <SystemResetModal
+        isOpen={isSystemResetOpen}
+        onRedirect={() => {
+          if (typeof window !== "undefined") {
+            window.localStorage.clear();
+            window.sessionStorage.clear();
+          }
+          onSignOut();
+        }}
       />
     </div>
   );

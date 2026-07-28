@@ -23,24 +23,24 @@ async function fetchProfileFromDb(
   supabase: import("@supabase/supabase-js").SupabaseClient,
   userId: string,
   fallback: { name: string; email: string; username: string; avatar: string },
-): Promise<AuthUser> {
-  const { data } = await supabase
+): Promise<AuthUser | null> {
+  const { data, error } = await supabase
     .from("profiles")
     .select("id, name, username, avatar, phone")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
-  if (data) {
-    return {
-      id: userId,
-      name: data.name || fallback.name,
-      email: fallback.email,
-      username: data.username || fallback.username,
-      avatar: data.avatar || fallback.avatar,
-    };
+  if (error || !data) {
+    return null;
   }
 
-  return { id: userId, ...fallback };
+  return {
+    id: userId,
+    name: data.name || fallback.name,
+    email: fallback.email,
+    username: data.username || fallback.username,
+    avatar: data.avatar || fallback.avatar,
+  };
 }
 
 // ─── Demo Mode Helpers ──────────────────────────────────────────────────────
@@ -138,12 +138,15 @@ export async function signup(data: {
 
   // Profile may not exist yet (trigger `handle_new_user` runs async),
   // so provide good fallback values from signup form data.
-  const user = await fetchProfileFromDb(supabase, authData.user.id, {
+  const fallbackUser: AuthUser = {
+    id: authData.user.id,
     name: data.name,
     email: data.email,
     username: data.username.toLowerCase().replace("@", ""),
     avatar: demoAvatar(data.name),
-  });
+  };
+  const profile = await fetchProfileFromDb(supabase, authData.user.id, fallbackUser);
+  const user = profile || fallbackUser;
 
   return {
     user,
@@ -185,12 +188,15 @@ export async function login(email: string, password: string): Promise<AuthRespon
   if (!authData.user) throw { message: "Login failed — no user returned" } as AuthError;
 
   const meta = authData.user.user_metadata ?? {};
-  const user = await fetchProfileFromDb(supabase, authData.user.id, {
+  const fallbackUser: AuthUser = {
+    id: authData.user.id,
     name: (meta.name as string) || email.split("@")[0],
     email: authData.user.email || email,
     username: (meta.username as string) || email.split("@")[0],
     avatar: (meta.avatar as string) || demoAvatar((meta.name as string) || email),
-  });
+  };
+  const profile = await fetchProfileFromDb(supabase, authData.user.id, fallbackUser);
+  const user = profile || fallbackUser;
 
   return {
     user,
@@ -260,12 +266,24 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       if (error || !user) return null;
 
       const meta = user.user_metadata ?? {};
-      return fetchProfileFromDb(supabase, user.id, {
+      const profile = await fetchProfileFromDb(supabase, user.id, {
         name: (meta.name as string) || user.email?.split("@")[0] || "User",
         email: user.email || "",
         username: (meta.username as string) || user.email?.split("@")[0] || "user",
         avatar: (meta.avatar as string) || demoAvatar((meta.name as string) || "U"),
       });
+
+      if (!profile) {
+        clearDemoSession();
+        if (typeof window !== "undefined") {
+          window.localStorage.clear();
+          window.sessionStorage.clear();
+        }
+        await supabase.auth.signOut().catch(() => {});
+        return null;
+      }
+
+      return profile;
     } catch (e) {
       console.error("Lỗi auth client-side:", e);
       return null;

@@ -670,7 +670,7 @@ export async function joinViaInviteCode(code: string): Promise<void> {
 export async function fetchProfile(userId: string): Promise<Profile | null> {
   if (IS_DEMO_MODE) return null;
   const supabase = getSupabase();
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
-  if (error) throw new ApiError(500, error.message);
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+  if (error || !data) return null;
   return data as Profile;
 }
