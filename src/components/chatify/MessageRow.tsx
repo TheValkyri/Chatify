@@ -103,22 +103,28 @@ export function MessageRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={springSoft}
-      className={`flex w-full ${isMe ? "justify-end" : "justify-start"} ${
+      className={`flex w-full min-w-0 ${isMe ? "justify-end" : "justify-start"} ${
         showAuthorName ? "mt-3" : "mt-1"
       }`}
     >
-      <div className={`flex max-w-[620px] flex-col gap-1 ${isMe ? "items-end" : "items-start"}`}>
+      <div
+        className={`flex max-w-[80%] md:max-w-[620px] min-w-0 flex-col gap-1 ${
+          isMe ? "items-end" : "items-start"
+        }`}
+      >
         {!isMe && isGroup && showAuthorName && (
-          <span className="pl-[42px] text-[11.5px] font-semibold text-primary/90 leading-none mb-0.5 select-none">
+          <span className="pl-[42px] text-[11.5px] font-semibold text-primary/90 leading-none mb-0.5 select-none truncate max-w-full">
             {authorName}
           </span>
         )}
 
-        <div className={`flex items-center gap-2.5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+        <div
+          className={`flex items-center gap-2.5 min-w-0 ${isMe ? "flex-row-reverse" : "flex-row"}`}
+        >
           {!isMe && (
             <div
               className={`h-8 w-8 shrink-0 flex items-center justify-center ${
-                isGroup && showAuthorName ? "translate-y-[3px]" : ""
+                isGroup && showAuthorName ? "translate-y-[2px]" : ""
               }`}
             >
               {showAvatar ? (
@@ -134,7 +140,7 @@ export function MessageRow({
 
           {m.text && !m.attachment && (
             <div
-              className={`whitespace-pre-wrap rounded-[20px] px-4 py-2.5 text-[14.5px] leading-relaxed ${
+              className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] [word-break:break-word] min-w-0 rounded-[20px] px-4 py-2.5 text-[14.5px] leading-relaxed ${
                 isMe
                   ? "bg-primary text-primary-foreground rounded-br-md"
                   : "bg-surface text-foreground rounded-bl-md"
