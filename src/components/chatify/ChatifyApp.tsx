@@ -476,6 +476,8 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
         convId: convToLeave.id,
         memberId: session.id,
         currentUserId: session.id,
+        actorName: session.name,
+        targetName: session.name,
       });
     } else {
       deleteConvMutation.mutate(convToLeave.id);
@@ -492,6 +494,8 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
         convId: convToLeave.id,
         newOwnerId: targetMember.id,
         currentOwnerId: session.id,
+        currentOwnerName: session.name,
+        newOwnerName: targetMember.name,
       },
       {
         onSuccess: () => {
@@ -499,6 +503,8 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
             convId: convToLeave.id,
             memberId: session.id,
             currentUserId: session.id,
+            actorName: session.name,
+            targetName: session.name,
           });
           if (activeId === convToLeave.id) {
             setActiveId("");
@@ -664,6 +670,7 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
           setModal("friends");
         }}
         friends={seedFriends}
+        session={session}
       />
       <InviteModal
         open={inviteModalOpen}

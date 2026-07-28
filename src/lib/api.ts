@@ -99,7 +99,19 @@ export async function createConversation(conv: Conversation): Promise<Conversati
 
   if (selectError) throw new ApiError(500, selectError.message);
 
-  return mapConversationFromDb(data);
+  const mapped = mapConversationFromDb(data);
+
+  if (conv.isGroup) {
+    const creatorName = conv.members.find((m) => m.role === "owner")?.name || "Trưởng nhóm";
+    const otherMembers = conv.members.filter((m) => m.role !== "owner").map((m) => m.name);
+    let text = `${creatorName} đã tạo nhóm "${conv.name}"`;
+    if (otherMembers.length > 0) {
+      text += ` và thêm ${otherMembers.join(", ")} vào nhóm`;
+    }
+    await sendSystemMessage(conv.id, text);
+  }
+
+  return mapped;
 }
 
 export async function deleteConversation(convId: string): Promise<void> {
@@ -215,12 +227,45 @@ export async function sendMessage(convId: string, msg: Message): Promise<Message
   return { ...msg, ...data, status: "sent" };
 }
 
+export async function sendSystemMessage(
+  convId: string,
+  text: string,
+  actorId?: string,
+): Promise<Message> {
+  let author = actorId;
+  if (!author && !IS_DEMO_MODE) {
+    try {
+      const supabase = getSupabase();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      author = user?.id;
+    } catch {
+      // ignore fallback
+    }
+  }
+  if (!author) author = "system";
+
+  const sysText = text.startsWith("📌 ") ? text : `📌 ${text}`;
+  const sysMsg: Message = {
+    id: `sys_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    author,
+    text: sysText,
+    time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+    status: "sent",
+  };
+
+  return sendMessage(convId, sysMsg);
+}
+
 // ─── Members ────────────────────────────────────────────────────────────────
 
 export async function updateMemberRole(
   convId: string,
   memberId: string,
   role: Member["role"],
+  actorName?: string,
+  targetName?: string,
 ): Promise<void> {
   if (IS_DEMO_MODE) {
     const convs = demoGet<Conversation[]>(STORAGE_KEYS.CONVERSATIONS, []);
@@ -230,18 +275,39 @@ export async function updateMemberRole(
       if (member) member.role = role;
       demoSet(STORAGE_KEYS.CONVERSATIONS, convs);
     }
-    return;
+  } else {
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("conversation_members")
+      .update({ role })
+      .match({ conversation_id: convId, user_id: memberId });
+    if (error) throw new ApiError(500, error.message);
   }
 
-  const supabase = getSupabase();
-  const { error } = await supabase
-    .from("conversation_members")
-    .update({ role })
-    .match({ conversation_id: convId, user_id: memberId });
-  if (error) throw new ApiError(500, error.message);
+  const actorStr = actorName ?? "Trưởng nhóm";
+  const targetStr = targetName ?? "thành viên";
+  if (role === "admin") {
+    await sendSystemMessage(convId, `${actorStr} đã bổ nhiệm ${targetStr} làm Phó nhóm`);
+  } else if (role === "member") {
+    await sendSystemMessage(convId, `${actorStr} đã tước quyền Phó nhóm của ${targetStr}`);
+  }
 }
 
-export async function removeMember(convId: string, memberId: string): Promise<void> {
+export async function removeMember(
+  convId: string,
+  memberId: string,
+  actorId?: string,
+  actorName?: string,
+  targetName?: string,
+): Promise<void> {
+  const targetStr = targetName ?? "Thành viên";
+  const actorStr = actorName ?? "Quản trị viên";
+  if (actorId && actorId === memberId) {
+    await sendSystemMessage(convId, `${targetStr} đã rời khỏi nhóm`, memberId);
+  } else {
+    await sendSystemMessage(convId, `${actorStr} đã xóa ${targetStr} khỏi nhóm`, actorId);
+  }
+
   if (IS_DEMO_MODE) {
     const convs = demoGet<Conversation[]>(STORAGE_KEYS.CONVERSATIONS, []);
     const conv = convs.find((c) => c.id === convId);
@@ -264,6 +330,8 @@ export async function transferOwnership(
   convId: string,
   newOwnerId: string,
   currentOwnerId: string,
+  currentOwnerName?: string,
+  newOwnerName?: string,
 ): Promise<void> {
   if (IS_DEMO_MODE) {
     const convs = demoGet<Conversation[]>(STORAGE_KEYS.CONVERSATIONS, []);
@@ -275,16 +343,23 @@ export async function transferOwnership(
       }));
       demoSet(STORAGE_KEYS.CONVERSATIONS, convs);
     }
-    return;
+  } else {
+    const supabase = getSupabase();
+    const { error } = await supabase.rpc("transfer_ownership_atomic", {
+      p_conv_id: convId,
+      p_new_owner_id: newOwnerId,
+      p_current_owner_id: currentOwnerId,
+    });
+    if (error) throw new ApiError(500, error.message);
   }
 
-  const supabase = getSupabase();
-  const { error } = await supabase.rpc("transfer_ownership_atomic", {
-    p_conv_id: convId,
-    p_new_owner_id: newOwnerId,
-    p_current_owner_id: currentOwnerId,
-  });
-  if (error) throw new ApiError(500, error.message);
+  const oldStr = currentOwnerName ?? "Trưởng nhóm";
+  const newStr = newOwnerName ?? "Thành viên";
+  await sendSystemMessage(
+    convId,
+    `${oldStr} đã chuyển quyền Trưởng nhóm cho ${newStr}`,
+    currentOwnerId,
+  );
 }
 
 // ─── Friends ────────────────────────────────────────────────────────────────
@@ -671,14 +746,48 @@ export async function fetchProfilesByIds(ids: string[]): Promise<Member[]> {
   }));
 }
 
-export async function joinViaInviteCode(code: string): Promise<void> {
+export async function joinViaInviteCode(code: string, joinerName?: string): Promise<string | void> {
   if (IS_DEMO_MODE) {
     await incrementInviteUsage(code);
+    const registry = demoGet<Record<string, InviteCode>>(STORAGE_KEYS.INVITE_CODES, {});
+    const invite = registry[code];
+    if (invite) {
+      const nameStr = joinerName ?? "Người dùng";
+      await sendSystemMessage(invite.groupId, `${nameStr} đã tham gia nhóm qua mã mời`);
+      return invite.groupId;
+    }
     return;
   }
   const supabase = getSupabase();
-  const { error } = await supabase.rpc("join_via_invite_code", { p_code: code });
+  const { data: groupId, error } = await supabase.rpc("join_via_invite_code", { p_code: code });
   if (error) throw new ApiError(500, error.message);
+
+  if (groupId) {
+    let nameStr = joinerName;
+    let userId: string | undefined;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      userId = user?.id;
+      if (!nameStr && userId) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", userId)
+          .single();
+        if (prof?.name) nameStr = prof.name;
+      }
+    } catch {
+      // fallback
+    }
+    await sendSystemMessage(
+      groupId as string,
+      `${nameStr || "Người dùng"} đã tham gia nhóm qua mã mời`,
+      userId,
+    );
+    return groupId as string;
+  }
 }
 
 export async function fetchProfile(userId: string): Promise<Profile | null> {

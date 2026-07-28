@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "npx vitest run",
     "deploy": "node scripts/deploy-helper.js",
     "test:smoke": "node scripts/smoke-test.cjs",
     "verify:supabase": "node scripts/verify-supabase.cjs",

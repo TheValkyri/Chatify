@@ -63,6 +63,26 @@ export function MessageRow({
   onPreview: (att: Attachment) => void;
   currentUserId: string;
 }) {
+  if (m.text?.startsWith("📌 ") || m.author === "system") {
+    const cleanText = m.text?.replace(/^📌\s*/, "") ?? "";
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 6, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={springSoft}
+        className="my-3 flex w-full justify-center px-4"
+      >
+        <div className="flex items-center gap-1.5 rounded-full bg-surface/90 backdrop-blur-md border border-border/60 px-4 py-1.5 text-[12px] font-medium text-foreground/80 shadow-sm select-none">
+          <span className="text-[13px] text-amber-500 shrink-0">📌</span>
+          <span className="truncate">{cleanText}</span>
+          <span className="ml-1 text-[10px] text-muted-foreground shrink-0">{m.time}</span>
+        </div>
+      </motion.div>
+    );
+  }
+
   const isMe = m.author === currentUserId;
   return (
     <motion.div

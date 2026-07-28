@@ -99,11 +99,15 @@ export function useUpdateMemberRole() {
       convId,
       memberId,
       role,
+      actorName,
+      targetName,
     }: {
       convId: string;
       memberId: string;
       role: Member["role"];
-    }) => updateMemberRole(convId, memberId, role),
+      actorName?: string;
+      targetName?: string;
+    }) => updateMemberRole(convId, memberId, role, actorName, targetName),
     onSuccess: (_, { convId, memberId, role }) => {
       queryClient.setQueryData<Conversation[]>(conversationKeys.all, (old) =>
         old
@@ -131,11 +135,16 @@ export function useRemoveMember() {
     mutationFn: ({
       convId,
       memberId,
+      currentUserId,
+      actorName,
+      targetName,
     }: {
       convId: string;
       memberId: string;
       currentUserId?: string;
-    }) => removeMember(convId, memberId),
+      actorName?: string;
+      targetName?: string;
+    }) => removeMember(convId, memberId, currentUserId, actorName, targetName),
     onSuccess: (_, { convId, memberId, currentUserId }) => {
       queryClient.setQueryData<Conversation[]>(conversationKeys.all, (old) => {
         if (!old) return [];
@@ -161,11 +170,15 @@ export function useTransferOwnership() {
       convId,
       newOwnerId,
       currentOwnerId,
+      currentOwnerName,
+      newOwnerName,
     }: {
       convId: string;
       newOwnerId: string;
       currentOwnerId: string;
-    }) => transferOwnership(convId, newOwnerId, currentOwnerId),
+      currentOwnerName?: string;
+      newOwnerName?: string;
+    }) => transferOwnership(convId, newOwnerId, currentOwnerId, currentOwnerName, newOwnerName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: conversationKeys.all });
     },

@@ -240,7 +240,17 @@ export function MediaGridItem({
   );
 }
 
-export function MemberRowActions({ member, convId }: { member: Member; convId: string }) {
+export function MemberRowActions({
+  member,
+  convId,
+  actorName,
+  actorId,
+}: {
+  member: Member;
+  convId: string;
+  actorName?: string;
+  actorId?: string;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const updateMemberRoleMutation = useUpdateMemberRole();
@@ -258,12 +268,24 @@ export function MemberRowActions({ member, convId }: { member: Member; convId: s
 
   const toggleAdmin = () => {
     const newRole = member.role === "admin" ? "member" : "admin";
-    updateMemberRoleMutation.mutate({ convId, memberId: member.id, role: newRole });
+    updateMemberRoleMutation.mutate({
+      convId,
+      memberId: member.id,
+      role: newRole,
+      actorName,
+      targetName: member.name,
+    });
     setIsOpen(false);
   };
 
   const kickMember = () => {
-    removeMemberMutation.mutate({ convId, memberId: member.id });
+    removeMemberMutation.mutate({
+      convId,
+      memberId: member.id,
+      currentUserId: actorId,
+      actorName,
+      targetName: member.name,
+    });
     setIsOpen(false);
   };
 

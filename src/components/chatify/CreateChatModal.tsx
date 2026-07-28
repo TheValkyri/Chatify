@@ -63,6 +63,7 @@ export function CreateChatModal({
   onJoin,
   onFriendRequestSuccess,
   friends,
+  session,
 }: {
   open: boolean;
   onClose: () => void;
@@ -77,6 +78,7 @@ export function CreateChatModal({
   onJoin: (groupId: string, name: string) => void;
   onFriendRequestSuccess?: () => void;
   friends: Friend[];
+  session?: AuthUser;
 }) {
   const [activeTab, setActiveTab] = useState<"create" | "join">("create");
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
@@ -148,7 +150,7 @@ export function CreateChatModal({
     if (!searchResult) return;
     if (searchResult.type === "group" && searchResult.groupId) {
       try {
-        await joinViaInviteCode(searchVal);
+        await joinViaInviteCode(searchVal, session?.name);
       } catch (e) {
         console.error("Lỗi khi tham gia bằng mã mời:", e);
       }

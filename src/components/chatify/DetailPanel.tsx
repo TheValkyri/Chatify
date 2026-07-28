@@ -318,7 +318,12 @@ export function DetailPanel({
                           </div>
 
                           {conv.isGroup && isOwner && m.id !== session.id && (
-                            <MemberRowActions member={m} convId={conv.id} />
+                            <MemberRowActions
+                              member={m}
+                              convId={conv.id}
+                              actorName={session.name}
+                              actorId={session.id}
+                            />
                           )}
                         </motion.div>
                       ))}
