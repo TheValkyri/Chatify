@@ -26,6 +26,7 @@ import {
 import { THEMES, type ThemeDef } from "./themes";
 import type { Profile, Notification, Friend, Member, Conversation } from "@/lib/types";
 import { generateInviteCode, fetchIncomingFriendRequests } from "@/lib/api";
+import { uploadFile } from "@/lib/upload";
 import { useRespondToFriendRequest } from "@/hooks/useFriends";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IS_DEMO_MODE } from "@/lib/config";
@@ -122,9 +123,21 @@ export function ProfileModal({
     if (open) setDraft(profile);
   }, [open, profile]);
 
-  const readFile = (f: File, key: "avatar" | "cover") => {
-    const url = URL.createObjectURL(f);
-    setDraft((d) => ({ ...d, [key]: url }));
+  const readFile = async (f: File, key: "avatar" | "cover") => {
+    try {
+      toast.loading("Đang tải ảnh lên...", { id: "upload-profile-img" });
+      const att = await uploadFile(f);
+      toast.dismiss("upload-profile-img");
+      if (att?.url) {
+        setDraft((d) => ({ ...d, [key]: att.url }));
+        toast.success("Đã tải ảnh lên!");
+      }
+    } catch {
+      toast.dismiss("upload-profile-img");
+      toast.error("Tải ảnh thất bại, dùng tạm xem trước.");
+      const url = URL.createObjectURL(f);
+      setDraft((d) => ({ ...d, [key]: url }));
+    }
   };
 
   return (
@@ -1128,7 +1141,7 @@ export function MemberProfileModal({
           <div className="flex flex-col items-center px-6 pb-6 pt-10 text-center">
             <div className="text-[16px] font-semibold">{member.name}</div>
             <div className="text-[12px] text-muted-foreground mt-0.5">
-              @{member.name.toLowerCase().replace(/\s+/g, "")}
+              @{member.username || member.name.toLowerCase().replace(/\s+/g, "")}
             </div>
 
             {member.role && (

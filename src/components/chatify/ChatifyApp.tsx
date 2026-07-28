@@ -102,7 +102,6 @@ import {
 /* ------------------------------ Animations ------------------------------- */
 /* --------------------------------- Utils --------------------------------- */
 
-
 /* ------------------------------ Draft type ------------------------------- */
 // Draft type is imported from @/lib/types — no longer defined here.
 
@@ -249,6 +248,25 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
     phone: "+84 912 345 678",
     email: session.email,
   });
+
+  useEffect(() => {
+    if (!session.id) return;
+    fetchProfile(session.id)
+      .then((p) => {
+        if (p) {
+          setProfile((prev) => ({
+            ...prev,
+            name: p.name || prev.name,
+            username: p.username || prev.username,
+            avatar: p.avatar || prev.avatar,
+            cover: p.cover || prev.cover,
+            bio: p.bio || prev.bio,
+            phone: p.phone || prev.phone,
+          }));
+        }
+      })
+      .catch(console.error);
+  }, [session.id]);
 
   const updateProfileMutation = useMutation({
     mutationFn: (newProfile: Profile) => updateProfile(session.id, newProfile),
@@ -816,23 +834,15 @@ function Rail({
 
 /* ================================ SIDEBAR ================================ */
 
-
 /* =============================== CHAT HEADER ============================= */
-
 
 /* ================================ CHAT AREA ============================== */
 
-
-
-
 /* ============================== MESSAGE ROW ============================== */
-
 
 /* ======================== MEDIA GRID ITEM (extracted to fix hook rules) ==== */
 
-
 /* ============================== ATTACHMENTS ============================== */
-
 
 function TicketStub({
   att,
@@ -1008,7 +1018,7 @@ function FolderCard({ att }: { att: Extract<Attachment, { kind: "folder" }> }) {
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-medium">{att.name}</div>
           <div className="mt-0.5 text-[11.5px] text-muted-foreground">
-            {att.files} tệp · {att.size}
+            {att.files ?? att.children?.length ?? 0} tệp · {att.size}
           </div>
         </div>
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2, ease: EASE }}>
@@ -1025,7 +1035,7 @@ function FolderCard({ att }: { att: Extract<Attachment, { kind: "folder" }> }) {
             className="overflow-hidden"
           >
             <div className="border-t border-border px-2 py-2">
-              {att.children.map((c, i) => (
+              {(att.children || []).map((c, i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between rounded-xl px-2.5 py-2 text-[13px] hover:bg-background/50"
@@ -1057,21 +1067,10 @@ function FolderCard({ att }: { att: Extract<Attachment, { kind: "folder" }> }) {
 
 /* ================================= COMPOSER ============================== */
 
-
-
-
 /* ============================ MEMBER ACTIONS ============================= */
-
 
 /* ============================== DETAIL PANEL ============================= */
 
-
-
-
 /* ============================== PREVIEW MODAL ============================= */
 
-
 /* ============================ CREATE CHAT MODAL =========================== */
-
-
-

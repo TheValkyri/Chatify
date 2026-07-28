@@ -1,17 +1,59 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { EASE, springSoft, springSidebar } from '@/lib/animation';
-import { Search, Phone, Video, Info, Plus, Image as ImageIcon, FileText, Folder, Paperclip, Send, X, Play, Download, ChevronDown, MessageSquare, Users, Settings, Bell, Check, CheckCheck, LogOut, PanelLeftClose, PanelLeft, UserPlus, MoreHorizontal } from 'lucide-react';
-import { STORAGE_KEYS } from '@/lib/config';
-import { toast } from 'sonner';
-import { downloadFile, downloadFolder, downloadAttachment, zipFolderToBlob, type OriginalFile } from '@/lib/file-transfer';
-import { buildAttachment, uploadFile } from '@/lib/upload';
-import { useAttachmentUrl } from '@/hooks/useAttachmentUrl';
-import type { Attachment, Message, Conversation, Member, Notification, Friend, Profile, AuthUser, Draft } from '@/lib/types';
-import { LiquidTransition } from './Modals';
-import { searchUsers, incrementInviteUsage, sendFriendRequest } from '@/lib/api';
-import { ModalField } from './helpers';
-import { ModalShell, ModalHeader } from './Modals';
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { EASE, springSoft, springSidebar } from "@/lib/animation";
+import {
+  Search,
+  Phone,
+  Video,
+  Info,
+  Plus,
+  Image as ImageIcon,
+  FileText,
+  Folder,
+  Paperclip,
+  Send,
+  X,
+  Play,
+  Download,
+  ChevronDown,
+  MessageSquare,
+  Users,
+  Settings,
+  Bell,
+  Check,
+  CheckCheck,
+  LogOut,
+  PanelLeftClose,
+  PanelLeft,
+  UserPlus,
+  MoreHorizontal,
+} from "lucide-react";
+import { STORAGE_KEYS } from "@/lib/config";
+import { toast } from "sonner";
+import {
+  downloadFile,
+  downloadFolder,
+  downloadAttachment,
+  zipFolderToBlob,
+  type OriginalFile,
+} from "@/lib/file-transfer";
+import { buildAttachment, uploadFile } from "@/lib/upload";
+import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
+import type {
+  Attachment,
+  Message,
+  Conversation,
+  Member,
+  Notification,
+  Friend,
+  Profile,
+  AuthUser,
+  Draft,
+} from "@/lib/types";
+import { LiquidTransition } from "./Modals";
+import { searchUsers, joinViaInviteCode, sendFriendRequest } from "@/lib/api";
+import { ModalField } from "./helpers";
+import { ModalShell, ModalHeader } from "./Modals";
 
 export function CreateChatModal({
   open,
@@ -106,9 +148,9 @@ export function CreateChatModal({
     if (!searchResult) return;
     if (searchResult.type === "group" && searchResult.groupId) {
       try {
-        await incrementInviteUsage(searchVal);
+        await joinViaInviteCode(searchVal);
       } catch (e) {
-        console.error("Lỗi khi cập nhật lượt dùng mã mời:", e);
+        console.error("Lỗi khi tham gia bằng mã mời:", e);
       }
       onJoin(searchResult.groupId, searchResult.name);
       setSearchVal("");

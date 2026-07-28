@@ -23,7 +23,7 @@ export function useRealtimeMessages(convId: string | null) {
           table: "messages",
           filter: `conversation_id=eq.${convId}`,
         },
-        (payload: any) => {
+        (payload: { eventType: string; new: Record<string, unknown> }) => {
           if (payload.eventType === "INSERT") {
             const incoming = mapMessageFromDb(payload.new);
             queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {

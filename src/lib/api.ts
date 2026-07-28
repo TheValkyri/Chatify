@@ -202,7 +202,11 @@ export async function sendMessage(convId: string, msg: Message): Promise<Message
       conversation_id: convId,
       author_id: msg.author,
       text: msg.text,
-      attachment: msg.attachment ? (msg.attachment.url?.startsWith("blob:") ? { ...msg.attachment, url: "" } : msg.attachment) : null,
+      attachment: msg.attachment
+        ? msg.attachment.url?.startsWith("blob:")
+          ? { ...msg.attachment, url: "" }
+          : msg.attachment
+        : null,
     })
     .select()
     .single();
@@ -496,6 +500,13 @@ export async function markMessagesAsRead(convId: string, userId: string): Promis
   if (IS_DEMO_MODE) return;
   const supabase = getSupabase();
 
+  // Update last_read_at in conversation_members for per-user unread tracking
+  try {
+    await supabase.rpc("mark_conversation_as_read", { p_conv_id: convId, p_user_id: userId });
+  } catch (err) {
+    void err;
+  }
+
   // Only mark messages not authored by the current user and not already read
   const { data: messages, error } = await supabase
     .from("messages")
@@ -670,7 +681,11 @@ export async function joinViaInviteCode(code: string): Promise<void> {
 export async function fetchProfile(userId: string): Promise<Profile | null> {
   if (IS_DEMO_MODE) return null;
   const supabase = getSupabase();
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
   if (error || !data) return null;
   return data as Profile;
 }

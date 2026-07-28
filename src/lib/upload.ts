@@ -32,7 +32,7 @@ export type UploadProgress = {
  */
 export async function uploadFile(
   file: File,
-  conversationId: string,
+  conversationId: string = "profile",
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
   const id = crypto.randomUUID();

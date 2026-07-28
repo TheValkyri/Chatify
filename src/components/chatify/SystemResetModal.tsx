@@ -79,13 +79,14 @@ export function SystemResetModal({
             style={{
               backgroundColor: "rgba(24, 18, 14, 0.94)",
               borderColor: "rgba(245, 165, 125, 0.25)",
-              boxShadow:
-                "0 35px 90px -20px rgba(0,0,0,0.85), 0 0 40px -10px rgba(245,165,125,0.2)",
+              boxShadow: "0 35px 90px -20px rgba(0,0,0,0.85), 0 0 40px -10px rgba(245,165,125,0.2)",
             }}
           >
             {/* Animated Icon */}
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border bg-gradient-to-b from-[#2a1b13] to-[#1a110b]"
-                 style={{ borderColor: "rgba(245, 165, 125, 0.3)" }}>
+            <div
+              className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border bg-gradient-to-b from-[#2a1b13] to-[#1a110b]"
+              style={{ borderColor: "rgba(245, 165, 125, 0.3)" }}
+            >
               <motion.div
                 animate={{ rotate: [0, 180, 360] }}
                 transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
@@ -96,19 +97,25 @@ export function SystemResetModal({
             </div>
 
             {/* Sparkle badge */}
-            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#f5a57d]"
-                 style={{ backgroundColor: "rgba(245,165,125,0.1)", borderColor: "rgba(245,165,125,0.25)" }}>
+            <div
+              className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#f5a57d]"
+              style={{
+                backgroundColor: "rgba(245,165,125,0.1)",
+                borderColor: "rgba(245,165,125,0.25)",
+              }}
+            >
               <Sparkles size={12} />
               <span>Hệ thống Reset</span>
             </div>
 
             {/* Title & Description */}
-            <h2 className="mb-2 text-[22px] font-bold text-[#f6ecdf]" style={{ fontFamily: "'Instrument Serif', serif" }}>
+            <h2
+              className="mb-2 text-[22px] font-bold text-[#f6ecdf]"
+              style={{ fontFamily: "'Instrument Serif', serif" }}
+            >
               {title}
             </h2>
-            <p className="mb-6 text-[13.5px] leading-relaxed text-[#a89b8c]">
-              {description}
-            </p>
+            <p className="mb-6 text-[13.5px] leading-relaxed text-[#a89b8c]">{description}</p>
 
             {/* Progress Bar Container */}
             <div className="relative mb-6 h-2 w-full overflow-hidden rounded-full bg-[#1e1712]">
