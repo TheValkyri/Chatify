@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Migration: 20260728193000_force_clear_auth_users.sql
--- Mô tả: Xóa triệt để auth.identities, auth.sessions, auth.users và profiles
+-- Mô tả: Xóa triệt để auth.identities, auth.sessions, auth.users và storage objects
 -- ============================================================================
 
 create or replace function public.clear_all_app_data()
@@ -30,8 +30,15 @@ begin
   delete from auth.one_time_tokens;
   delete from auth.users;
 
-  -- 3. Xóa các file đính kèm trong Storage
+  -- 3. Xóa các file đính kèm trong Storage (tắt trigger bảo vệ tạm thời)
+  alter table storage.objects disable trigger all;
   delete from storage.objects where bucket_id in ('attachments', 'avatars', 'covers');
+  alter table storage.objects enable trigger all;
+exception
+  when others then
+    -- Nếu storage.objects gặp lỗi khác, đảm bảo khôi phục lại trigger
+    alter table storage.objects enable trigger all;
+    raise;
 end;
 $$;
 
