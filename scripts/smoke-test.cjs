@@ -34,7 +34,7 @@ async function main() {
   const email2 = `test_user_2_${Date.now()}@example.com`;
   const password = "Password123!";
 
-  let user1Id, user2Id;
+  let user1Id, user2Id, groupId;
 
   try {
     // ---- TEST 1: Đăng ký tài khoản 1 ----
@@ -91,7 +91,7 @@ async function main() {
     // ---- TEST 4: Tạo group chat từ User 1 ----
     console.log("\n🧪 Test 4: User 1 tạo nhóm chat mới...");
     const { randomUUID } = require("crypto");
-    const groupId = `smoke_${randomUUID()}`;
+    groupId = `smoke_${randomUUID()}`;
 
     // Insert conversations thô không dùng .select() để tránh RLS SELECT policy block
     const { error: groupInsertError } = await client1.from("conversations").insert({
@@ -173,11 +173,15 @@ async function main() {
     if (leaveError) throw leaveError;
     console.log("✅ User 2 rời nhóm thành công!");
 
+    console.log("✅ Đã dọn dẹp sạch database!");
+  } catch (err) {
+    console.error(`\n❌ Smoke Test thất bại tại bước: ${err.message || err}`);
+  } finally {
     // ---- DỌN DẸP DỮ LIỆU ----
     console.log("\n🧹 Đang dọn dẹp dữ liệu test...");
     // Xoá group (cascade sẽ tự động xoá messages và members)
-    if (group) {
-      await client1.from("conversations").delete().eq("id", group.id);
+    if (groupId) {
+      await client1.from("conversations").delete().eq("id", groupId);
     }
 
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -192,9 +196,6 @@ async function main() {
         "⚠️ Không có SUPABASE_SERVICE_ROLE_KEY — tài khoản test KHÔNG được tự động xoá. Xoá thủ công qua Dashboard.",
       );
     }
-    console.log("✅ Đã dọn dẹp sạch database!");
-  } catch (err) {
-    console.error(`\n❌ Smoke Test thất bại tại bước: ${err.message || err}`);
   }
 
   console.log("\n====================================================");

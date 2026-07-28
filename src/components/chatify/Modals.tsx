@@ -25,13 +25,12 @@ import {
 } from "lucide-react";
 import { THEMES, type ThemeDef } from "./themes";
 import type { Profile, Notification, Friend, Member, Conversation } from "@/lib/types";
-import { generateInviteCode, fetchIncomingFriendRequests, respondToFriendRequest } from "@/lib/api";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { generateInviteCode, fetchIncomingFriendRequests } from "@/lib/api";
+import { useRespondToFriendRequest } from "@/hooks/useFriends";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IS_DEMO_MODE } from "@/lib/config";
 import { toast } from "sonner";
-
-const EASE = [0.22, 1, 0.36, 1] as const;
-const spring = { type: "spring" as const, stiffness: 260, damping: 26 };
+import { EASE, springSoft as spring } from "@/lib/animation";
 
 /* ------------------------- Shared modal shell ---------------------------- */
 export function ModalShell({
@@ -75,7 +74,7 @@ export function ModalShell({
   );
 }
 
-function ModalHeader({
+export function ModalHeader({
   title,
   onClose,
   extraBtn,
@@ -476,20 +475,7 @@ export function NotificationsModal({
     enabled: open && !IS_DEMO_MODE,
   });
 
-  const respondMutation = useMutation({
-    mutationFn: ({ requestId, action }: { requestId: string; action: "accept" | "reject" }) =>
-      respondToFriendRequest(requestId, action),
-    onSuccess: (_, variables) => {
-      toast.success(
-        variables.action === "accept" ? "Đã chấp nhận kết bạn." : "Đã từ chối kết bạn.",
-      );
-      queryClient.invalidateQueries({ queryKey: ["friend-requests", "incoming"] });
-      queryClient.invalidateQueries({ queryKey: ["friends"] });
-    },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Thao tác thất bại.");
-    },
-  });
+  const respondMutation = useRespondToFriendRequest();
 
   const hasRequests = incomingRequests.length > 0;
 

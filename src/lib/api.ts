@@ -202,7 +202,7 @@ export async function sendMessage(convId: string, msg: Message): Promise<Message
       conversation_id: convId,
       author_id: msg.author,
       text: msg.text,
-      attachment: msg.attachment ?? null,
+      attachment: msg.attachment ? (msg.attachment.url?.startsWith("blob:") ? { ...msg.attachment, url: "" } : msg.attachment) : null,
     })
     .select()
     .single();
@@ -655,4 +655,22 @@ export async function fetchProfilesByIds(ids: string[]): Promise<Member[]> {
     avatar: p.avatar,
     role: "member" as const,
   }));
+}
+
+export async function joinViaInviteCode(code: string): Promise<void> {
+  if (IS_DEMO_MODE) {
+    await incrementInviteUsage(code);
+    return;
+  }
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc("join_via_invite_code", { p_code: code });
+  if (error) throw new ApiError(500, error.message);
+}
+
+export async function fetchProfile(userId: string): Promise<Profile | null> {
+  if (IS_DEMO_MODE) return null;
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+  if (error) throw new ApiError(500, error.message);
+  return data as Profile;
 }

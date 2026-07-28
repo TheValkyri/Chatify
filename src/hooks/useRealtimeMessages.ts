@@ -18,27 +18,26 @@ export function useRealtimeMessages(convId: string | null) {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "messages",
           filter: `conversation_id=eq.${convId}`,
         },
-        (payload: {
-          new: {
-            id: string;
-            conversation_id: string;
-            author_id: string;
-            text: string | null;
-            attachment: unknown;
-            created_at: string;
-          };
-        }) => {
-          const incoming = mapMessageFromDb(payload.new);
-          queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
-            if (!old) return [incoming];
-            if (old.some((m) => m.id === incoming.id)) return old; // tránh trùng với optimistic update của chính mình
-            return [...old, incoming];
-          });
+        (payload: any) => {
+          if (payload.eventType === "INSERT") {
+            const incoming = mapMessageFromDb(payload.new);
+            queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
+              if (!old) return [incoming];
+              if (old.some((m) => m.id === incoming.id)) return old; // tránh trùng với optimistic update của chính mình
+              return [...old, incoming];
+            });
+          } else if (payload.eventType === "UPDATE") {
+            const incoming = mapMessageFromDb(payload.new);
+            queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
+              if (!old) return old;
+              return old.map((m) => (m.id === incoming.id ? { ...m, ...incoming } : m));
+            });
+          }
         },
       )
       .subscribe();

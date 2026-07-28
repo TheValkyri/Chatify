@@ -64,9 +64,3 @@ export const STORAGE_KEYS = {
 export const API_BASE = import.meta.env.VITE_API_URL as string | undefined;
 
 // ─── Feature Flags ──────────────────────────────────────────────────────────
-
-/** Enable WebRTC calling (not yet implemented) */
-export const FEATURE_CALLS = false;
-
-/** Enable read receipts (requires realtime) */
-export const FEATURE_READ_RECEIPTS = !IS_DEMO_MODE;

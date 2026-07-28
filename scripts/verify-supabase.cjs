@@ -64,6 +64,9 @@ async function main() {
         console.log(
           `✅ Storage Bucket 'attachments' tồn tại (Public: ${attachmentsBucket.public})!`,
         );
+        if (attachmentsBucket.public === true) {
+          console.warn("⚠️ Warning: Bucket attachments is Public! It should be Private.");
+        }
       } else {
         console.warn(
           "⚠️ Cảnh báo: Bucket 'attachments' chưa được tạo! Đang cố gắng tạo bucket tự động...",
@@ -71,7 +74,7 @@ async function main() {
         const { data: createData, error: createError } = await supabase.storage.createBucket(
           "attachments",
           {
-            public: true,
+            public: false,
           },
         );
         if (createError) {

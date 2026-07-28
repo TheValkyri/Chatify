@@ -110,7 +110,7 @@ async function main() {
     console.log("\nBây giờ bạn có thể:");
     console.log("1. Chạy 'npm run dev' để test app kết nối backend thật.");
     console.log(
-      "2. Đăng nhập Supabase Dashboard -> Storage và tạo bucket 'attachments' (chế độ Public).",
+      "2. Đăng nhập Supabase Dashboard -> Storage và tạo bucket 'attachments' (chế độ Private).",
     );
     console.log("3. Tiến hành kiểm thử khói (Smoke Test) với 2 trình duyệt.");
   } catch (error) {

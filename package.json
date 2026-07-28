@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "deploy": "node scripts/deploy-helper.js"
+    "deploy": "node scripts/deploy-helper.js",
+    "test:smoke": "node scripts/smoke-test.cjs",
+    "verify:supabase": "node scripts/verify-supabase.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
