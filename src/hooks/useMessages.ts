@@ -21,7 +21,8 @@ export function useMessages(convId: string | null) {
     queryKey: messageKeys.all(convId ?? ""),
     queryFn: () => fetchMessages(convId!),
     enabled: !!convId,
-    staleTime: 1000 * 10, // 10s
+    staleTime: 1000 * 2,
+    refetchInterval: 3000,
   });
 }
 

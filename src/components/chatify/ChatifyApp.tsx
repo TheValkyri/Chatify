@@ -131,7 +131,11 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
   const { data: activeMessages = [] } = useMessages(activeId || null);
   const messages = activeMessages || [];
   useRealtimeMessages(activeId || null);
-  useRealtimeGlobal(session.id);
+  useRealtimeGlobal(session.id, (evictedConvId) => {
+    if (activeId === evictedConvId) {
+      setActiveId("");
+    }
+  });
   const onlineUsers = usePresence(session.id);
   const { data: dbFriends } = useFriends();
 

@@ -12,14 +12,61 @@ import type { Conversation, Message } from "@/lib/types";
  * Listens to all new messages across all conversations the user is part of,
  * and to membership changes, so the sidebar stays in sync.
  */
-export function useRealtimeGlobal(currentUserId: string | null) {
+import { toast } from "sonner";
+
+export function useRealtimeGlobal(
+  currentUserId: string | null,
+  onEvictedFromConv?: (convId: string) => void,
+) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (IS_DEMO_MODE || !currentUserId) return;
     const supabase = getSupabase();
 
-    const channel = supabase
+    // ⚡ INSTANT USER-SPECIFIC BROADCAST CHANNEL (< 30ms)
+    const userChannel = supabase
+      .channel(`user:${currentUserId}`, {
+        config: { broadcast: { self: true } },
+      })
+      .on(
+        "broadcast",
+        { event: "user_group_event" },
+        (payload: {
+          payload: {
+            event: string;
+            convId: string;
+            targetUserId?: string;
+            actorName?: string;
+            targetName?: string;
+            newRole?: string;
+          };
+        }) => {
+          const { event, convId, targetUserId, newRole } = payload.payload;
+
+          if (event === "member_kicked" && targetUserId === currentUserId) {
+            // Remove conversation from query cache immediately
+            queryClient.setQueryData<Conversation[]>(conversationKeys.all, (old) =>
+              old ? old.filter((c) => c.id !== convId) : [],
+            );
+            queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+
+            toast.error("Bạn đã bị xóa khỏi nhóm!");
+            if (onEvictedFromConv) {
+              onEvictedFromConv(convId);
+            }
+          } else if (event === "role_updated" || event === "ownership_transferred") {
+            queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+            if (event === "role_updated" && newRole) {
+              const roleTitle = newRole === "admin" ? "Phó nhóm" : "Thành viên";
+              toast.info(`Vai trò của bạn trong nhóm đã được cập nhật thành: ${roleTitle}`);
+            }
+          }
+        },
+      )
+      .subscribe();
+
+    const sidebarChannel = supabase
       .channel("global:sidebar")
       // ── New messages (any conversation) ──
       .on(
@@ -61,12 +108,9 @@ export function useRealtimeGlobal(currentUserId: string | null) {
             });
           });
 
-          // Also inject into the message cache for that conversation
-          // (useRealtimeMessages already does this for the active conv,
-          // but this covers background conversations too)
           const incoming = mapMessageFromDb(row);
           queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
-            if (!old) return undefined; // don't create cache entries for convs we haven't loaded
+            if (!old) return undefined;
             if (old.some((m) => m.id === incoming.id)) return old;
             return [...old, incoming];
           });
@@ -81,14 +125,14 @@ export function useRealtimeGlobal(currentUserId: string | null) {
           table: "conversation_members",
         },
         () => {
-          // Re-fetch the full conversation list when membership changes
           queryClient.invalidateQueries({ queryKey: conversationKeys.all });
         },
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(userChannel);
+      supabase.removeChannel(sidebarChannel);
     };
-  }, [currentUserId, queryClient]);
+  }, [currentUserId, queryClient, onEvictedFromConv]);
 }

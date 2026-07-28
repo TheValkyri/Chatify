@@ -30,7 +30,8 @@ export function useConversations() {
   return useQuery({
     queryKey: conversationKeys.all,
     queryFn: fetchConversations,
-    staleTime: 1000 * 30, // 30s — re-fetch in background
+    staleTime: 1000 * 2,
+    refetchInterval: 3000,
   });
 }
 

@@ -14,7 +14,43 @@ export function useRealtimeMessages(convId: string | null) {
     const supabase = getSupabase();
 
     const channel = supabase
-      .channel(`messages:${convId}`)
+      .channel(`room:${convId}`, {
+        config: { broadcast: { self: true } },
+      })
+
+      // ⚡ INSTANT WEBSOCKET BROADCAST LISTENER (< 30ms)
+      .on(
+        "broadcast",
+        { event: "new_message" },
+        (payload: { payload: { convId: string; message: Message } }) => {
+          const incoming = payload.payload?.message;
+          if (!incoming || !incoming.id) return;
+
+          queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
+            if (!old) return [incoming];
+            if (old.some((m) => m.id === incoming.id)) return old;
+            return [...old, incoming];
+          });
+        },
+      )
+
+      // ⚡ INSTANT GROUP EVENT SYSTEM MESSAGES BROADCAST (< 30ms)
+      .on(
+        "broadcast",
+        { event: "group_event" },
+        (payload: { payload: { event: string; systemMessage?: Message } }) => {
+          const sysMsg = payload.payload?.systemMessage;
+          if (sysMsg && sysMsg.id) {
+            queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
+              if (!old) return [sysMsg];
+              if (old.some((m) => m.id === sysMsg.id)) return old;
+              return [...old, sysMsg];
+            });
+          }
+        },
+      )
+
+      // 🔄 POSTGRES REPLICATION FALLBACK
       .on(
         "postgres_changes",
         {
@@ -30,7 +66,7 @@ export function useRealtimeMessages(convId: string | null) {
             );
             queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) => {
               if (!old) return [incoming];
-              if (old.some((m) => m.id === incoming.id)) return old; // tránh trùng với optimistic update của chính mình
+              if (old.some((m) => m.id === incoming.id)) return old;
               return [...old, incoming];
             });
           } else if (payload.eventType === "UPDATE") {

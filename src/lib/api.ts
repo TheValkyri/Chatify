@@ -5,6 +5,7 @@
 import { IS_DEMO_MODE, STORAGE_KEYS } from "./config";
 import { getSupabase } from "./supabase";
 import { mapConversationFromDb, mapMessageFromDb } from "./mappers";
+import { broadcastNewMessage, broadcastGroupEvent } from "./realtime-broadcast";
 import type {
   Conversation,
   Member,
@@ -224,7 +225,9 @@ export async function sendMessage(convId: string, msg: Message): Promise<Message
     .single();
 
   if (error) throw new ApiError(500, error.message);
-  return { ...msg, ...data, status: "sent" };
+  const result: Message = { ...msg, ...data, status: "sent" };
+  broadcastNewMessage(convId, result).catch(console.error);
+  return result;
 }
 
 export async function sendSystemMessage(
@@ -286,11 +289,21 @@ export async function updateMemberRole(
 
   const actorStr = actorName ?? "Trưởng nhóm";
   const targetStr = targetName ?? "thành viên";
+  let sysMsg: Message | undefined;
   if (role === "admin") {
-    await sendSystemMessage(convId, `${actorStr} đã bổ nhiệm ${targetStr} làm Phó nhóm`);
+    sysMsg = await sendSystemMessage(convId, `${actorStr} đã bổ nhiệm ${targetStr} làm Phó nhóm`);
   } else if (role === "member") {
-    await sendSystemMessage(convId, `${actorStr} đã tước quyền Phó nhóm của ${targetStr}`);
+    sysMsg = await sendSystemMessage(convId, `${actorStr} đã tước quyền Phó nhóm của ${targetStr}`);
   }
+
+  broadcastGroupEvent(convId, "role_updated", {
+    convId,
+    targetUserId: memberId,
+    actorName,
+    targetName,
+    newRole: role,
+    systemMessage: sysMsg,
+  }).catch(console.error);
 }
 
 export async function removeMember(
@@ -302,10 +315,11 @@ export async function removeMember(
 ): Promise<void> {
   const targetStr = targetName ?? "Thành viên";
   const actorStr = actorName ?? "Quản trị viên";
+  let sysMsg: Message | undefined;
   if (actorId && actorId === memberId) {
-    await sendSystemMessage(convId, `${targetStr} đã rời khỏi nhóm`, memberId);
+    sysMsg = await sendSystemMessage(convId, `${targetStr} đã rời khỏi nhóm`, memberId);
   } else {
-    await sendSystemMessage(convId, `${actorStr} đã xóa ${targetStr} khỏi nhóm`, actorId);
+    sysMsg = await sendSystemMessage(convId, `${actorStr} đã xóa ${targetStr} khỏi nhóm`, actorId);
   }
 
   if (IS_DEMO_MODE) {
@@ -315,15 +329,23 @@ export async function removeMember(
       conv.members = conv.members.filter((m) => m.id !== memberId);
       demoSet(STORAGE_KEYS.CONVERSATIONS, convs);
     }
-    return;
+  } else {
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("conversation_members")
+      .delete()
+      .match({ conversation_id: convId, user_id: memberId });
+    if (error) throw new ApiError(500, error.message);
   }
 
-  const supabase = getSupabase();
-  const { error } = await supabase
-    .from("conversation_members")
-    .delete()
-    .match({ conversation_id: convId, user_id: memberId });
-  if (error) throw new ApiError(500, error.message);
+  broadcastGroupEvent(convId, "member_kicked", {
+    convId,
+    targetUserId: memberId,
+    actorUserId: actorId,
+    actorName,
+    targetName,
+    systemMessage: sysMsg,
+  }).catch(console.error);
 }
 
 export async function transferOwnership(
@@ -355,11 +377,20 @@ export async function transferOwnership(
 
   const oldStr = currentOwnerName ?? "Trưởng nhóm";
   const newStr = newOwnerName ?? "Thành viên";
-  await sendSystemMessage(
+  const sysMsg = await sendSystemMessage(
     convId,
     `${oldStr} đã chuyển quyền Trưởng nhóm cho ${newStr}`,
     currentOwnerId,
   );
+
+  broadcastGroupEvent(convId, "ownership_transferred", {
+    convId,
+    targetUserId: newOwnerId,
+    actorUserId: currentOwnerId,
+    actorName: currentOwnerName,
+    targetName: newOwnerName,
+    systemMessage: sysMsg,
+  }).catch(console.error);
 }
 
 // ─── Friends ────────────────────────────────────────────────────────────────
