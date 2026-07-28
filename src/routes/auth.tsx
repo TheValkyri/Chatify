@@ -172,7 +172,7 @@ function AuthPage() {
                         animate={{ opacity: 1, height: "auto", scale: 1, marginBottom: 0 }}
                         exit={{ opacity: 0, height: 0, scale: 0.95, marginBottom: -16 }}
                         transition={{ type: "spring", stiffness: 350, damping: 26 }}
-                        className="overflow-hidden flex flex-col gap-4"
+                        className="p-1 -m-1 flex flex-col gap-4"
                       >
                         <Field label="Tên hiển thị">
                           <input
@@ -339,15 +339,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   const [focused, setFocused] = useState(false);
 
   return (
-    <label className="flex flex-col gap-2">
+    <label className="flex flex-col gap-2 p-1 -m-1">
       <span className="text-[12px] font-medium tracking-wide" style={{ color: "#c8bcae" }}>
         {label}
       </span>
       <motion.div
         animate={{
-          scale: focused ? 1.015 : 1,
-          borderColor: focused ? "rgba(245, 165, 125, 0.4)" : "rgba(255, 255, 255, 0.06)",
-          boxShadow: focused ? "0 0 0 4px rgba(245, 165, 125, 0.08)" : "none",
+          scale: focused ? 1.01 : 1,
+          borderColor: focused ? "rgba(245, 165, 125, 0.45)" : "rgba(255, 255, 255, 0.06)",
+          boxShadow: focused ? "0 0 0 3.5px rgba(245, 165, 125, 0.12)" : "0 0 0 0px transparent",
         }}
         transition={{ type: "spring", stiffness: 400, damping: 25 }}
         onFocusCapture={() => setFocused(true)}
