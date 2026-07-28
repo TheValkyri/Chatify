@@ -103,47 +103,58 @@ export function MessageRow({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={springSoft}
-      className={`flex w-full items-start gap-2.5 ${isMe ? "justify-end" : "justify-start"} ${
-        showAuthorName ? "mt-3" : "mt-0.5"
+      className={`flex w-full ${isMe ? "justify-end" : "justify-start"} ${
+        showAuthorName ? "mt-3" : "mt-1"
       }`}
     >
-      {!isMe && (
-        <div
-          className={`h-8 w-8 shrink-0 flex items-center justify-center ${
-            isGroup && showAuthorName ? "mt-4.5" : "mt-0"
-          }`}
-        >
-          {showAvatar ? (
-            <UserAvatar
-              src={authorAvatar}
-              name={authorName}
-              className="h-8 w-8 rounded-full shadow-xs"
-              textClassName="text-[10px]"
-            />
-          ) : null}
-        </div>
-      )}
-      <div className={`flex max-w-[580px] flex-col gap-1 ${isMe ? "items-end" : "items-start"}`}>
+      <div className={`flex max-w-[620px] flex-col gap-1 ${isMe ? "items-end" : "items-start"}`}>
         {!isMe && isGroup && showAuthorName && (
-          <span className="px-1 text-[11.5px] font-semibold text-primary/90 leading-none mb-0.5 select-none">
+          <span className="pl-[42px] text-[11.5px] font-semibold text-primary/90 leading-none mb-0.5 select-none">
             {authorName}
           </span>
         )}
-        {m.text && !m.attachment && (
-          <div
-            className={`whitespace-pre-wrap rounded-[20px] px-4 py-2.5 text-[14.5px] leading-relaxed ${
-              isMe
-                ? "bg-primary text-primary-foreground rounded-br-md"
-                : "bg-surface text-foreground rounded-bl-md"
-            }`}
-          >
-            {m.text}
-          </div>
-        )}
-        {m.attachment && (
-          <AttachmentView att={m.attachment} isMe={isMe} onPreview={onPreview} status={m.status} />
-        )}
-        <div className="mt-0.5 flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
+
+        <div className={`flex items-center gap-2.5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+          {!isMe && (
+            <div className="h-8 w-8 shrink-0 flex items-center justify-center">
+              {showAvatar ? (
+                <UserAvatar
+                  src={authorAvatar}
+                  name={authorName}
+                  className="h-8 w-8 rounded-full shadow-xs"
+                  textClassName="text-[10px]"
+                />
+              ) : null}
+            </div>
+          )}
+
+          {m.text && !m.attachment && (
+            <div
+              className={`whitespace-pre-wrap rounded-[20px] px-4 py-2.5 text-[14.5px] leading-relaxed ${
+                isMe
+                  ? "bg-primary text-primary-foreground rounded-br-md"
+                  : "bg-surface text-foreground rounded-bl-md"
+              }`}
+            >
+              {m.text}
+            </div>
+          )}
+
+          {m.attachment && (
+            <AttachmentView
+              att={m.attachment}
+              isMe={isMe}
+              onPreview={onPreview}
+              status={m.status}
+            />
+          )}
+        </div>
+
+        <div
+          className={`mt-0.5 flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground ${
+            !isMe ? "pl-[42px]" : ""
+          }`}
+        >
           <span>{m.time}</span>
           {isMe && m.status === "read" && <CheckCheck size={13} className="text-primary" />}
           {isMe && m.status === "delivered" && <CheckCheck size={13} />}
