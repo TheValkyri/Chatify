@@ -3,7 +3,8 @@ const { URL } = require("url");
 const fs = require("fs");
 const path = require("path");
 
-const OAUTH_CLIENT_ID = "373867923923-46bgvs479s5ccg2dmm93psi4i8uemtu8" + ".apps.googleusercontent.com";
+const OAUTH_CLIENT_ID =
+  "373867923923-46bgvs479s5ccg2dmm93psi4i8uemtu8" + ".apps.googleusercontent.com";
 const OAUTH_CLIENT_SECRET = "GOCSPX-" + "Fo8MYt0xM60A37kOS01OiPDO0uX0";
 
 const REDIRECT_URI = "http://localhost:3456/callback";
