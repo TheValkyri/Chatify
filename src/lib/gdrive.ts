@@ -114,9 +114,7 @@ export const uploadToGDriveServerFn = createServerFn({ method: "POST" })
     const p3Part = new Uint8Array(fileBuffer);
     const p4Part = enc.encode(closeDelim);
 
-    const fullBody = new Uint8Array(
-      p1Part.length + p2Part.length + p3Part.length + p4Part.length,
-    );
+    const fullBody = new Uint8Array(p1Part.length + p2Part.length + p3Part.length + p4Part.length);
     fullBody.set(p1Part, 0);
     fullBody.set(p2Part, p1Part.length);
     fullBody.set(p3Part, p1Part.length + p2Part.length);
