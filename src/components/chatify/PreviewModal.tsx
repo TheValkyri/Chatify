@@ -1,56 +1,10 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { EASE, springSoft, springSidebar } from "@/lib/animation";
-import {
-  Search,
-  Phone,
-  Video,
-  Info,
-  Plus,
-  Image as ImageIcon,
-  FileText,
-  Folder,
-  Paperclip,
-  Send,
-  X,
-  Play,
-  Download,
-  ChevronDown,
-  MessageSquare,
-  Users,
-  Settings,
-  Bell,
-  Check,
-  CheckCheck,
-  LogOut,
-  PanelLeftClose,
-  PanelLeft,
-  UserPlus,
-  MoreHorizontal,
-} from "lucide-react";
-import { STORAGE_KEYS } from "@/lib/config";
+import { X, Download } from "lucide-react";
 import { toast } from "sonner";
-import {
-  downloadFile,
-  downloadFolder,
-  downloadAttachment,
-  zipFolderToBlob,
-  type OriginalFile,
-} from "@/lib/file-transfer";
-import { buildAttachment, uploadFile } from "@/lib/upload";
+import { downloadAttachment } from "@/lib/file-transfer";
 import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
-import type {
-  Attachment,
-  Message,
-  Conversation,
-  Member,
-  Notification,
-  Friend,
-  Profile,
-  AuthUser,
-  Draft,
-} from "@/lib/types";
-import { LiquidTransition } from "./Modals";
+import type { Attachment } from "@/lib/types";
 
 export function PreviewModal({
   open,
@@ -63,8 +17,29 @@ export function PreviewModal({
 }) {
   const isImage = att?.kind === "image";
   const isVideo = att?.kind === "video";
-  const rawSrc = isImage ? att?.url : att?.kind === "video" ? att?.poster || att?.url : undefined;
+  const rawSrc = att?.url;
   const { url: src, refresh: refreshSrc } = useAttachmentUrl(rawSrc);
+  const { url: posterSrc } = useAttachmentUrl(isVideo ? att?.poster : undefined);
+
+  // Close modal when pressing ESC
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  const metaText = att
+    ? att.kind === "image"
+      ? `${att.dims || "Ảnh"} · ${att.size}`
+      : att.kind === "video"
+        ? `${att.duration && att.duration !== "—" ? att.duration : "Video"} · ${att.size}`
+        : att.size
+    : "";
 
   return (
     <AnimatePresence>
@@ -73,56 +48,68 @@ export function PreviewModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+          onClick={onClose}
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-md cursor-pointer"
         >
+          {/* Top-right close button */}
           <button
             onClick={onClose}
-            className="absolute right-6 top-6 grid h-12 w-12 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            className="absolute right-6 top-6 grid h-12 w-12 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors z-10"
             aria-label="Đóng"
           >
             <X size={24} />
           </button>
 
-          <div className="relative max-h-[80vh] max-w-[90vw] overflow-hidden rounded-2xl flex items-center justify-center">
+          {/* Media Container (Stop click propagation so clicking media doesn't close modal) */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-h-[80vh] max-w-[90vw] overflow-hidden rounded-2xl flex items-center justify-center cursor-default"
+          >
             {isImage ? (
               <img
                 src={src}
                 alt={att.name}
-                className="max-h-[80vh] max-w-[90vw] object-contain select-none shadow-2xl"
+                className="max-h-[80vh] max-w-[90vw] object-contain select-none shadow-2xl rounded-2xl"
                 onError={refreshSrc}
               />
             ) : isVideo ? (
               <video
                 src={src}
-                className="max-h-[80vh] max-w-[90vw] object-contain"
+                poster={posterSrc || undefined}
+                className="max-h-[80vh] max-w-[90vw] object-contain shadow-2xl rounded-2xl"
                 controls
-                autoPlay
+                autoPlay={false}
                 preload="metadata"
+                playsInline
                 onError={refreshSrc}
               />
-            ) : null}
+            ) : (
+              <div className="p-8 bg-surface rounded-2xl text-foreground text-center">
+                <div className="font-semibold">{att.name}</div>
+                <div className="text-sm text-muted-foreground mt-1">{metaText}</div>
+              </div>
+            )}
           </div>
 
-          <div className="mt-6 flex flex-col items-center text-center text-white">
+          {/* Media Info & Download Button (Stop propagation) */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="mt-6 flex flex-col items-center text-center text-white cursor-default"
+          >
             <div className="text-lg font-semibold">{att.name}</div>
-            <div className="mt-1 text-sm text-white/60">
-              {att.kind === "image"
-                ? `${att.dims} · ${att.size}`
-                : att.kind === "video"
-                  ? `${att.duration} · ${att.size}`
-                  : att.size}
-            </div>
+            <div className="mt-1 text-sm text-white/60">{metaText}</div>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={async () => {
+              onClick={async (e) => {
+                e.stopPropagation();
                 try {
                   await downloadAttachment(att);
                 } catch (err) {
                   toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
                 }
               }}
-              className="mt-4 flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg"
+              className="mt-4 flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
             >
               <Download size={16} /> Tải chất lượng gốc
             </motion.button>

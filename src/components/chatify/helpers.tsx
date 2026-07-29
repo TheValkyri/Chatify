@@ -355,9 +355,9 @@ export function AttachmentView({
     return <TicketStub att={att} onPreview={onPreview} status={status} />;
   }
   if (att.kind === "folder") {
-    return <FolderCard att={att} />;
+    return <FolderCard att={att} status={status} />;
   }
-  return <FileCard att={att} isMe={isMe} />;
+  return <FileCard att={att} isMe={isMe} status={status} />;
 }
 
 export async function readEntry(entry: WebkitEntry, files: OriginalFile[]): Promise<void> {
@@ -386,19 +386,30 @@ export function TicketStub({
   onPreview: (att: Attachment) => void;
   status?: string;
 }) {
+  const isUploading =
+    status === "sending" || (att.uploadProgress !== undefined && att.uploadProgress < 100);
+  const progress = att.uploadProgress ?? 0;
   const isMockVideo = att.kind === "video" && !att.source && att.poster?.startsWith("data:");
-  const rawSrc = att.kind === "image" ? att.url || "" : att.poster || att.url || "";
+  const rawSrc = att.kind === "image" ? att.url || "" : att.url || att.poster || "";
   const { url: src, refresh: refreshSrc } = useAttachmentUrl(rawSrc);
-  const meta = att.kind === "image" ? `${att.dims} · ${att.size}` : `${att.duration} · ${att.size}`;
+  const durationText =
+    att.kind === "video" && att.duration && att.duration !== "—" ? att.duration : "Video";
+  const meta =
+    att.kind === "image" ? `${att.dims || "Ảnh"} · ${att.size}` : `${durationText} · ${att.size}`;
+
   return (
     <motion.div
-      whileHover={{ y: -2 }}
+      whileHover={isUploading ? {} : { y: -2 }}
       transition={{ duration: 0.2, ease: EASE }}
       className="w-[380px] overflow-hidden rounded-[22px] bg-surface shadow-xl shadow-black/20"
     >
       <div
-        className="relative cursor-pointer h-56 w-full overflow-hidden bg-muted"
-        onClick={() => onPreview(att)}
+        className={`relative h-56 w-full overflow-hidden bg-muted ${
+          isUploading ? "cursor-not-allowed" : "cursor-pointer"
+        }`}
+        onClick={() => {
+          if (!isUploading) onPreview(att);
+        }}
       >
         {att.kind === "image" ? (
           <img
@@ -424,7 +435,7 @@ export function TicketStub({
             onError={refreshSrc}
           />
         )}
-        {att.kind === "video" && (
+        {att.kind === "video" && !isUploading && (
           <div className="absolute inset-0 grid place-items-center bg-black/10">
             <motion.div
               whileHover={{ scale: 1.08 }}
@@ -435,54 +446,82 @@ export function TicketStub({
             </motion.div>
           </div>
         )}
-        {status === "sending" && att.uploadProgress !== undefined && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-            <div
-              className="h-full bg-primary transition-all duration-200"
-              style={{ width: `${att.uploadProgress}%` }}
-            />
+
+        {/* Real Progress Bar & Locking Overlay */}
+        {isUploading && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs p-4 text-white select-none">
+            <div className="text-[13px] font-semibold mb-2 flex items-center gap-1.5">
+              <span>Đang gửi tệp...</span>
+              <span className="font-mono text-primary font-bold">{progress}%</span>
+            </div>
+            <div className="w-52 h-2 rounded-full bg-white/20 overflow-hidden shadow-inner">
+              <div
+                className="h-full bg-primary transition-all duration-200 rounded-full"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="text-[11px] text-white/70 mt-2">Đang tải dữ liệu lên server</div>
           </div>
         )}
       </div>
+
       <div className="ticket-perf h-3.5" />
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
           <div className="truncate text-[13.5px] font-medium">{att.name}</div>
           <div className="mt-0.5 text-[11.5px] text-muted-foreground">
-            {att.url && !att.url.startsWith("blob:")
-              ? "Đã lưu trên máy chủ"
-              : att.source
-                ? "Bản gốc (phiên này)"
-                : "Tệp mẫu"}{" "}
+            {isUploading
+              ? `Đang tải lên... ${progress}%`
+              : att.url && !att.url.startsWith("blob:")
+                ? "Đã lưu trên máy chủ"
+                : att.source
+                  ? "Bản gốc (phiên này)"
+                  : "Tệp mẫu"}{" "}
             · {meta}
           </div>
         </div>
         <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.94 }}
+          whileHover={isUploading ? {} : { scale: 1.05 }}
+          whileTap={isUploading ? {} : { scale: 0.94 }}
+          disabled={isUploading}
           onClick={async () => {
+            if (isUploading) return;
             try {
               await downloadAttachment(att);
             } catch (err) {
               toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
             }
           }}
-          title="Tải tệp gốc"
-          className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-[12.5px] font-medium text-primary-foreground"
+          title={isUploading ? "Đang tải lên server, chưa thể tải về" : "Tải tệp gốc"}
+          className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-medium transition-colors ${
+            isUploading
+              ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+              : "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+          }`}
         >
-          <Download size={14} /> Tải gốc
+          <Download size={14} /> {isUploading ? "Đang gửi..." : "Tải gốc"}
         </motion.button>
       </div>
     </motion.div>
   );
 }
 
-export function FolderCard({ att }: { att: Extract<Attachment, { kind: "folder" }> }) {
+export function FolderCard({
+  att,
+  status,
+}: {
+  att: Extract<Attachment, { kind: "folder" }>;
+  status?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
+  const isUploading =
+    status === "sending" || (att.uploadProgress !== undefined && att.uploadProgress < 100);
+  const progress = att.uploadProgress ?? 0;
 
   const handleDownload = async () => {
+    if (isUploading) return;
     setDownloading(true);
     setDownloadError("");
     try {
@@ -506,24 +545,47 @@ export function FolderCard({ att }: { att: Extract<Attachment, { kind: "folder" 
   return (
     <motion.div layout className="w-[380px] overflow-hidden rounded-[22px] bg-surface">
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
+        onClick={() => !isUploading && setOpen((o) => !o)}
+        disabled={isUploading}
+        className={`flex w-full items-center gap-3 px-3.5 py-3 text-left ${
+          isUploading ? "cursor-not-allowed" : ""
+        }`}
       >
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/20 text-primary">
           <Folder size={20} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-medium">{att.name}</div>
-          <div className="mt-0.5 text-[11.5px] text-muted-foreground">
-            {att.files} tệp · {att.size}
-          </div>
+          {isUploading ? (
+            <div className="w-full mt-1 pr-2">
+              <div className="flex justify-between text-[11px] font-semibold text-primary mb-1">
+                <span>Đang tải lên...</span>
+                <span className="font-mono">{progress}%</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-primary/20 overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-200 rounded-full"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="mt-0.5 text-[11.5px] text-muted-foreground">
+              {att.files} tệp · {att.size}
+            </div>
+          )}
         </div>
-        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2, ease: EASE }}>
-          <ChevronDown size={18} className="text-muted-foreground" />
-        </motion.div>
+        {!isUploading && (
+          <motion.div
+            animate={{ rotate: open ? 180 : 0 }}
+            transition={{ duration: 0.2, ease: EASE }}
+          >
+            <ChevronDown size={18} className="text-muted-foreground" />
+          </motion.div>
+        )}
       </button>
       <AnimatePresence initial={false}>
-        {open && (
+        {open && !isUploading && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -543,9 +605,9 @@ export function FolderCard({ att }: { att: Extract<Attachment, { kind: "folder" 
               ))}
               <button
                 onClick={handleDownload}
-                disabled={downloading}
+                disabled={downloading || isUploading}
                 title="Tạo ZIP không nén từ các tệp gốc"
-                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-medium text-primary hover:bg-primary/10"
+                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
               >
                 <Download size={13} /> {downloading ? "Đang chuẩn bị…" : "Tải cả thư mục"}
               </button>
@@ -565,14 +627,20 @@ export function FolderCard({ att }: { att: Extract<Attachment, { kind: "folder" 
 export function FileCard({
   att,
   isMe,
+  status,
 }: {
   att: Extract<Attachment, { kind: "file" }>;
   isMe: boolean;
+  status?: string;
 }) {
+  const isUploading =
+    status === "sending" || (att.uploadProgress !== undefined && att.uploadProgress < 100);
+  const progress = att.uploadProgress ?? 0;
+
   return (
     <motion.div
-      whileHover={{ y: -1 }}
-      className={`flex w-[320px] items-center gap-3 rounded-2xl px-3.5 py-3 ${
+      whileHover={isUploading ? {} : { y: -1 }}
+      className={`flex w-[340px] items-center gap-3 rounded-2xl px-3.5 py-3 ${
         isMe ? "bg-primary/15" : "bg-surface"
       }`}
     >
@@ -581,21 +649,42 @@ export function FileCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13.5px] font-medium">{att.name}</div>
-        <div className="mt-0.5 text-[11.5px] uppercase tracking-wider text-muted-foreground">
-          {att.ext} · {att.size}
-        </div>
+        {isUploading ? (
+          <div className="w-full mt-1">
+            <div className="flex justify-between text-[11px] font-semibold text-primary mb-1">
+              <span>Đang tải lên...</span>
+              <span className="font-mono">{progress}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-primary/20 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-200 rounded-full"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="mt-0.5 text-[11.5px] uppercase tracking-wider text-muted-foreground">
+            {att.ext} · {att.size}
+          </div>
+        )}
       </div>
       <motion.button
-        whileTap={{ scale: 0.9 }}
+        whileTap={isUploading ? {} : { scale: 0.9 }}
+        disabled={isUploading}
         onClick={async () => {
+          if (isUploading) return;
           try {
             await downloadAttachment(att);
           } catch (err) {
             toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
           }
         }}
-        title="Tải tệp gốc"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background/60 hover:text-foreground"
+        title={isUploading ? "Đang tải lên server, chưa thể tải về" : "Tải tệp gốc"}
+        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition-colors ${
+          isUploading
+            ? "text-muted-foreground/40 cursor-not-allowed"
+            : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+        }`}
         aria-label="Tải"
       >
         <Download size={16} />

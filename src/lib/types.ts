@@ -75,6 +75,7 @@ export type FolderAttachment = {
   size: string;
   children: { name: string; size: string }[];
   url?: string;
+  uploadProgress?: number;
   sourceFiles?: import("@/lib/file-transfer").OriginalFile[]; // client-only
 };
 

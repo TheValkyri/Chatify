@@ -2,7 +2,7 @@
 // Handles file uploads via Supabase Storage in production mode.
 // In demo mode, returns blob URLs directly (files stay in browser memory).
 
-import { IS_DEMO_MODE } from "./config";
+import { IS_DEMO_MODE, SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
 import { getSupabase } from "./supabase";
 import type { Attachment } from "./types";
 
@@ -38,10 +38,10 @@ export async function uploadFile(
   const id = crypto.randomUUID();
 
   if (IS_DEMO_MODE) {
-    // Simulate upload delay for realistic UX
+    // Simulate upload delay with real progress for realistic UX
     if (onProgress) {
-      for (let i = 0; i <= 100; i += 25) {
-        await new Promise((r) => setTimeout(r, 80));
+      for (let i = 0; i <= 100; i += 20) {
+        await new Promise((r) => setTimeout(r, 60));
         onProgress({ loaded: (file.size * i) / 100, total: file.size, percent: i });
       }
     }
@@ -58,10 +58,51 @@ export async function uploadFile(
     };
   }
 
-  // Production: upload to Supabase Storage
+  // Production: upload to Supabase Storage with real XHR progress tracking
   const supabase = getSupabase();
   const ext = file.name.split(".").pop() || "bin";
   const path = `${conversationId}/${id}.${ext}`;
+
+  if (onProgress) {
+    const sessionRes = await supabase.auth.getSession();
+    const token = sessionRes.data.session?.access_token || SUPABASE_ANON_KEY!;
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/attachments/${path}`;
+
+    return new Promise<UploadResult>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", uploadUrl);
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY!);
+      xhr.setRequestHeader("x-upsert", "false");
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && e.total > 0) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress({ loaded: e.loaded, total: e.total, percent });
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress({ loaded: file.size, total: file.size, percent: 100 });
+          resolve({
+            id,
+            url: path,
+            thumbnailUrl: file.type.startsWith("image/") ? path : undefined,
+            name: file.name,
+            size: file.size,
+            contentType: file.type,
+          });
+        } else {
+          reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Lỗi kết nối mạng khi tải tệp lên server."));
+      xhr.send(file);
+    });
+  }
 
   const { error } = await supabase.storage.from("attachments").upload(path, file, {
     contentType: file.type,
@@ -70,10 +111,6 @@ export async function uploadFile(
   });
 
   if (error) throw new Error(`Upload failed: ${error.message}`);
-
-  if (onProgress) {
-    onProgress({ loaded: file.size, total: file.size, percent: 100 });
-  }
 
   return {
     id,
@@ -106,9 +143,6 @@ export async function getAttachmentSignedUrl(path: string, expiresInSec = 3600):
 export function buildAttachment(upload: UploadResult, file: File): Attachment {
   const sizeStr = formatSize(upload.size);
 
-  // NOTE: Never include client-only fields (source, sourceFiles, uploadProgress)
-  // in the returned object — these would be serialized into JSONB in Postgres.
-
   if (file.type.startsWith("image/")) {
     return {
       kind: "image",
@@ -127,7 +161,7 @@ export function buildAttachment(upload: UploadResult, file: File): Attachment {
       id: upload.id,
       name: upload.name,
       size: sizeStr,
-      duration: "—",
+      duration: "Video",
       url: upload.url,
       thumbnailUrl: upload.thumbnailUrl,
     };
