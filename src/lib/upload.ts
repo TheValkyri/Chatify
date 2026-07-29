@@ -35,7 +35,7 @@ export async function uploadFile(
   conversationId: string = "profile",
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
-  const MAX_SIZE_MB = 50;
+  const MAX_SIZE_MB = 500;
   const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
   if (file.size > MAX_SIZE_BYTES) {
     throw new Error(
