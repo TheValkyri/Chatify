@@ -5,6 +5,7 @@
 import { IS_DEMO_MODE, SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
 import { getSupabase } from "./supabase";
 import type { Attachment } from "./types";
+import { uploadFileToGDrive, getGDriveDirectUrl } from "./gdrive";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -28,18 +29,18 @@ export type UploadProgress = {
 /**
  * Upload a file and return its permanent URL.
  * Demo: returns a blob URL (lost after page refresh — acceptable for demo).
- * Production: uploads to Supabase Storage bucket "attachments".
+ * Production: uploads to Google Drive 5TB storage (fallback: Supabase Storage).
  */
 export async function uploadFile(
   file: File,
   conversationId: string = "profile",
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
-  const MAX_SIZE_MB = 500;
+  const MAX_SIZE_MB = 5000; // 5 GB
   const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
   if (file.size > MAX_SIZE_BYTES) {
     throw new Error(
-      `Tệp "${file.name}" (${formatSize(file.size)}) vượt quá dung lượng cho phép. Giới hạn tối đa là ${MAX_SIZE_MB} MB.`,
+      `Tệp "${file.name}" (${formatSize(file.size)}) vượt quá dung lượng cho phép (Tối đa 5 GB).`,
     );
   }
 
@@ -66,7 +67,22 @@ export async function uploadFile(
     };
   }
 
-  // Production: upload to Supabase Storage with real XHR progress tracking
+  // Primary: Upload directly to Google Drive 5TB Storage
+  try {
+    const gdriveRes = await uploadFileToGDrive(file, onProgress);
+    return {
+      id: gdriveRes.id,
+      url: gdriveRes.url, // "gdrive://<file_id>"
+      thumbnailUrl: file.type.startsWith("image/") ? gdriveRes.directUrl : undefined,
+      name: gdriveRes.name,
+      size: gdriveRes.size,
+      contentType: gdriveRes.mimeType,
+    };
+  } catch (gdriveErr) {
+    console.warn("Google Drive upload failed, falling back to Supabase Storage:", gdriveErr);
+  }
+
+  // Fallback: upload to Supabase Storage with real XHR progress tracking
   const supabase = getSupabase();
   const ext = file.name.split(".").pop() || "bin";
   const path = `${conversationId}/${id}.${ext}`;
@@ -105,7 +121,7 @@ export async function uploadFile(
         } else if (xhr.status === 413 || xhr.responseText.includes("Payload too large")) {
           reject(
             new Error(
-              `Tệp vượt quá dung lượng tối đa cho phép trên Supabase (${MAX_SIZE_MB} MB). Vui lòng chọn tệp nhỏ hơn.`,
+              `Tệp vượt quá dung lượng tối đa cho phép trên Supabase. Vui lòng chọn tệp nhỏ hơn.`,
             ),
           );
         } else {
@@ -137,10 +153,17 @@ export async function uploadFile(
 }
 
 /**
- * Creates a temporary signed URL for an attachment stored via its path.
+ * Creates a temporary signed URL or resolves direct Google Drive URL for an attachment.
  */
 export async function getAttachmentSignedUrl(path: string, expiresInSec = 3600): Promise<string> {
   if (IS_DEMO_MODE) return path; // demo mode: path đã là blob: URL sẵn, dùng thẳng
+  if (path.startsWith("gdrive://")) {
+    const fileId = path.replace("gdrive://", "");
+    return getGDriveDirectUrl(fileId);
+  }
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("blob:")) {
+    return path;
+  }
   const supabase = getSupabase();
   const { data, error } = await supabase.storage
     .from("attachments")

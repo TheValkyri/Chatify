@@ -32,3 +32,6 @@ dist-ssr
 *.sw?
 supabase/.temp
 
+# Credentials
+capable-sled-*.json
+
