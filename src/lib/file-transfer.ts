@@ -142,6 +142,20 @@ export function downloadFile(file: File) {
 export async function downloadAttachment(att: import("./types").Attachment) {
   // Primary path: download from URL (works for both server URLs and blob/data URIs)
   if (att.url) {
+    if (att.url.startsWith("gdrive://")) {
+      const fileId = att.url.replace("gdrive://", "");
+      const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = att.name;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
     try {
       let downloadUrl = att.url;
       if (!att.url.startsWith("blob:") && !att.url.startsWith("data:")) {

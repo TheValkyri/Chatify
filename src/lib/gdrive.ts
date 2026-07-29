@@ -6,7 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 
 export const GDRIVE_FOLDER_ID = "1EhKOuWTR0TPk8H_o55_AwiCdfAs5vk9d";
 
-// ─── OAuth2 Credentials ───────────────────────────────────────────────────────
+// ─── Encoded OAuth2 Credentials ───────────────────────────────────────────────
 
 const p1 = "373867923923-46bgvs479s5ccg2dmm93psi4i8uemtu8";
 const p2 = ".apps.googleusercontent.com";
@@ -109,16 +109,18 @@ export const uploadToGDriveServerFn = createServerFn({ method: "POST" })
     const mediaHeader = delimiter + `Content-Type: ${mimeType}\r\n\r\n`;
 
     const enc = new TextEncoder();
-    const p1 = enc.encode(metadataPart);
-    const p2 = enc.encode(mediaHeader);
-    const p3 = new Uint8Array(fileBuffer);
-    const p4 = enc.encode(closeDelim);
+    const p1Part = enc.encode(metadataPart);
+    const p2Part = enc.encode(mediaHeader);
+    const p3Part = new Uint8Array(fileBuffer);
+    const p4Part = enc.encode(closeDelim);
 
-    const fullBody = new Uint8Array(p1.length + p2.length + p3.length + p4.length);
-    fullBody.set(p1, 0);
-    fullBody.set(p2, p1.length);
-    fullBody.set(p3, p1.length + p2.length);
-    fullBody.set(p4, p1.length + p2.length + p3.length);
+    const fullBody = new Uint8Array(
+      p1Part.length + p2Part.length + p3Part.length + p4Part.length,
+    );
+    fullBody.set(p1Part, 0);
+    fullBody.set(p2Part, p1Part.length);
+    fullBody.set(p3Part, p1Part.length + p2Part.length);
+    fullBody.set(p4Part, p1Part.length + p2Part.length + p3Part.length);
 
     const uploadRes = await fetch(
       "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
@@ -166,7 +168,7 @@ export const uploadToGDriveServerFn = createServerFn({ method: "POST" })
       size: file.size,
       mimeType: driveData.mimeType || mimeType,
       url: `gdrive://${driveData.id}`,
-      directUrl: getGDriveDirectUrl(driveData.id),
+      directUrl: getGDriveDirectUrl(driveData.id, driveData.mimeType || mimeType),
     };
   });
 
@@ -196,10 +198,20 @@ export async function uploadFileToGDrive(
   return result;
 }
 
-export function getGDriveDirectUrl(fileId: string): string {
-  return `https://lh3.googleusercontent.com/d/${fileId}`;
+/**
+ * Returns a direct view/stream URL for Google Drive files.
+ * Uses Google UserContent for images and export=view for videos/audio/documents.
+ */
+export function getGDriveDirectUrl(fileId: string, mimeType?: string): string {
+  if (mimeType?.startsWith("image/")) {
+    return `https://lh3.googleusercontent.com/d/${fileId}`;
+  }
+  return `https://drive.google.com/uc?export=view&id=${fileId}`;
 }
 
+/**
+ * Returns a direct download URL for Google Drive files.
+ */
 export function getGDriveDownloadUrl(fileId: string): string {
-  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+  return `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
 }
