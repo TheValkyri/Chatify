@@ -1,6 +1,7 @@
 // ─── Google Drive API Storage Service ─────────────────────────────────────────
 // Connects Chatify directly to Google Drive 5TB storage.
 
+import { createServerFn } from "@tanstack/react-start";
 import SERVICE_ACCOUNT from "../../capable-sled-503905-r7-2aae63abc97b.json";
 
 export const GDRIVE_FOLDER_ID = "1EhKOuWTR0TPk8H_o55_AwiCdfAs5vk9d";
@@ -52,9 +53,9 @@ function base64url(str: string | ArrayBuffer): string {
 }
 
 /**
- * Generates an OAuth2 Access Token for Google Service Account using RS256 JWT.
+ * Generates an OAuth2 Access Token for Google Service Account using RS256 JWT (Server-side).
  */
-export async function getGoogleDriveAccessToken(): Promise<string> {
+async function getGoogleDriveAccessTokenServer(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   if (cachedAccessToken && cachedAccessToken.expiresAt > now + 60) {
     return cachedAccessToken.token;
@@ -98,7 +99,7 @@ export async function getGoogleDriveAccessToken(): Promise<string> {
     throw new Error(`Google Auth Token failed (${res.status}): ${errText}`);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as { access_token: string; expires_in?: number };
   cachedAccessToken = {
     token: data.access_token,
     expiresAt: now + (data.expires_in || 3600),
@@ -106,6 +107,70 @@ export async function getGoogleDriveAccessToken(): Promise<string> {
 
   return data.access_token;
 }
+
+// ─── Server Function: Init Upload Session ──────────────────────────────────
+
+export const initGDriveUploadServerFn = createServerFn({ method: "POST" })
+  .validator((data: { name: string; size: number; mimeType: string }) => data)
+  .handler(async ({ data }) => {
+    const token = await getGoogleDriveAccessTokenServer();
+
+    const initRes = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-Upload-Content-Type": data.mimeType || "application/octet-stream",
+          "X-Upload-Content-Length": data.size.toString(),
+          "Content-Type": "application/json; charset=UTF-8",
+        },
+        body: JSON.stringify({
+          name: data.name,
+          parents: [GDRIVE_FOLDER_ID],
+        }),
+      },
+    );
+
+    if (!initRes.ok) {
+      const errText = await initRes.text();
+      throw new Error(`Google Drive init failed (${initRes.status}): ${errText}`);
+    }
+
+    const uploadLocation = initRes.headers.get("Location");
+    if (!uploadLocation) {
+      throw new Error("Không thể khởi tạo link tải lên Google Drive.");
+    }
+
+    return { uploadLocation, token };
+  });
+
+// ─── Server Function: Set Public Permission ─────────────────────────────────
+
+export const setGDrivePublicPermissionServerFn = createServerFn({ method: "POST" })
+  .validator((data: { fileId: string }) => data)
+  .handler(async ({ data }) => {
+    try {
+      const token = await getGoogleDriveAccessTokenServer();
+      await fetch(`https://www.googleapis.com/drive/v3/files/${data.fileId}/permissions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          role: "reader",
+          type: "anyone",
+        }),
+      });
+      return { success: true };
+    } catch (e) {
+      console.warn("Could not set public permission on Google Drive file:", e);
+      return { success: false };
+    }
+  });
+
+// ─── Client Function: Upload File to Google Drive ───────────────────────────
 
 export type GDriveUploadProgress = {
   loaded: number;
@@ -129,37 +194,16 @@ export async function uploadFileToGDrive(
   file: File,
   onProgress?: (progress: GDriveUploadProgress) => void,
 ): Promise<GDriveUploadResult> {
-  const token = await getGoogleDriveAccessToken();
-
-  // Step 1: Initiate Resumable Upload Session
-  const initRes = await fetch(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "X-Upload-Content-Type": file.type || "application/octet-stream",
-        "X-Upload-Content-Length": file.size.toString(),
-        "Content-Type": "application/json; charset=UTF-8",
-      },
-      body: JSON.stringify({
-        name: file.name,
-        parents: [GDRIVE_FOLDER_ID],
-      }),
+  // Step 1: Call Server Function to get Resumable Upload URL & Auth Token
+  const { uploadLocation } = await initGDriveUploadServerFn({
+    data: {
+      name: file.name,
+      size: file.size,
+      mimeType: file.type || "application/octet-stream",
     },
-  );
+  });
 
-  if (!initRes.ok) {
-    const errText = await initRes.text();
-    throw new Error(`Google Drive upload init failed (${initRes.status}): ${errText}`);
-  }
-
-  const uploadLocation = initRes.headers.get("Location");
-  if (!uploadLocation) {
-    throw new Error("Không thể khởi tạo link tải lên Google Drive.");
-  }
-
-  // Step 2: Upload file via XHR with progress tracking
+  // Step 2: Upload file via XHR to Google Drive Resumable URL with progress
   const fileData = await new Promise<GDriveUploadResult>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", uploadLocation);
@@ -175,7 +219,11 @@ export async function uploadFileToGDrive(
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const data = JSON.parse(xhr.responseText);
+          const data = JSON.parse(xhr.responseText) as {
+            id: string;
+            name?: string;
+            mimeType?: string;
+          };
           if (onProgress) {
             onProgress({ loaded: file.size, total: file.size, percent: 100 });
           }
@@ -199,22 +247,8 @@ export async function uploadFileToGDrive(
     xhr.send(file);
   });
 
-  // Step 3: Set public reader permission so anyone in chat can view/download
-  try {
-    await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        role: "reader",
-        type: "anyone",
-      }),
-    });
-  } catch (e) {
-    console.warn("Could not set public permission on Google Drive file:", e);
-  }
+  // Step 3: Set public reader permission via Server Function
+  await setGDrivePublicPermissionServerFn({ data: { fileId: fileData.id } });
 
   return fileData;
 }
