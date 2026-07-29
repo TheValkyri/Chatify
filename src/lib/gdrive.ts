@@ -1,5 +1,5 @@
 // ─── Google Drive API Storage Service ─────────────────────────────────────────
-// Connects Chatify directly to Google Drive 5TB storage.
+// Connects Chatify directly to Google Drive 5TB storage via Server Function.
 
 import { createServerFn } from "@tanstack/react-start";
 import SERVICE_ACCOUNT from "../../capable-sled-503905-r7-2aae63abc97b.json";
@@ -10,7 +10,6 @@ let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
 /**
  * Converts PEM formatted RSA private key to CryptoKey using Web Crypto API.
- * Works natively in Browser, Cloudflare Workers, Node.js, and Nitro.
  */
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const pemHeader = "-----BEGIN PRIVATE KEY-----";
@@ -35,9 +34,6 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
   );
 }
 
-/**
- * Encodes string to Base64URL format without padding.
- */
 function base64url(str: string | ArrayBuffer): string {
   let bytes: Uint8Array;
   if (typeof str === "string") {
@@ -53,7 +49,7 @@ function base64url(str: string | ArrayBuffer): string {
 }
 
 /**
- * Generates an OAuth2 Access Token for Google Service Account using RS256 JWT (Server-side).
+ * Generates OAuth2 Access Token for Google Service Account on Server (Cloudflare Worker/Nitro).
  */
 async function getGoogleDriveAccessTokenServer(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
@@ -108,70 +104,6 @@ async function getGoogleDriveAccessTokenServer(): Promise<string> {
   return data.access_token;
 }
 
-// ─── Server Function: Init Upload Session ──────────────────────────────────
-
-export const initGDriveUploadServerFn = createServerFn({ method: "POST" })
-  .validator((data: { name: string; size: number; mimeType: string }) => data)
-  .handler(async ({ data }) => {
-    const token = await getGoogleDriveAccessTokenServer();
-
-    const initRes = await fetch(
-      "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-Upload-Content-Type": data.mimeType || "application/octet-stream",
-          "X-Upload-Content-Length": data.size.toString(),
-          "Content-Type": "application/json; charset=UTF-8",
-        },
-        body: JSON.stringify({
-          name: data.name,
-          parents: [GDRIVE_FOLDER_ID],
-        }),
-      },
-    );
-
-    if (!initRes.ok) {
-      const errText = await initRes.text();
-      throw new Error(`Google Drive init failed (${initRes.status}): ${errText}`);
-    }
-
-    const uploadLocation = initRes.headers.get("Location");
-    if (!uploadLocation) {
-      throw new Error("Không thể khởi tạo link tải lên Google Drive.");
-    }
-
-    return { uploadLocation, token };
-  });
-
-// ─── Server Function: Set Public Permission ─────────────────────────────────
-
-export const setGDrivePublicPermissionServerFn = createServerFn({ method: "POST" })
-  .validator((data: { fileId: string }) => data)
-  .handler(async ({ data }) => {
-    try {
-      const token = await getGoogleDriveAccessTokenServer();
-      await fetch(`https://www.googleapis.com/drive/v3/files/${data.fileId}/permissions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          role: "reader",
-          type: "anyone",
-        }),
-      });
-      return { success: true };
-    } catch (e) {
-      console.warn("Could not set public permission on Google Drive file:", e);
-      return { success: false };
-    }
-  });
-
-// ─── Client Function: Upload File to Google Drive ───────────────────────────
-
 export type GDriveUploadProgress = {
   loaded: number;
   total: number;
@@ -187,82 +119,124 @@ export type GDriveUploadResult = {
   directUrl: string;
 };
 
-/**
- * Uploads a file directly to Google Drive 5TB folder with real XHR progress tracking.
- */
+// ─── Server Function: Upload File Directly to Google Drive 5TB ──────────────
+
+export const uploadToGDriveServerFn = createServerFn({ method: "POST" })
+  .validator((formData: FormData) => formData)
+  .handler(async ({ data: formData }): Promise<GDriveUploadResult> => {
+    const file = formData.get("file") as File | null;
+    if (!file) throw new Error("Không có tệp nào được gửi lên server.");
+
+    const token = await getGoogleDriveAccessTokenServer();
+
+    // Multipart Upload to Google Drive API
+    const metadata = {
+      name: file.name,
+      parents: [GDRIVE_FOLDER_ID],
+    };
+
+    const boundary = "-------314159265358979323846";
+    const delimiter = "\r\n--" + boundary + "\r\n";
+    const closeDelim = "\r\n--" + boundary + "--";
+
+    const fileBuffer = await file.arrayBuffer();
+    const mimeType = file.type || "application/octet-stream";
+
+    const metadataPart =
+      delimiter +
+      "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
+      JSON.stringify(metadata);
+
+    const mediaHeader = delimiter + `Content-Type: ${mimeType}\r\n\r\n`;
+
+    const enc = new TextEncoder();
+    const p1 = enc.encode(metadataPart);
+    const p2 = enc.encode(mediaHeader);
+    const p3 = new Uint8Array(fileBuffer);
+    const p4 = enc.encode(closeDelim);
+
+    const fullBody = new Uint8Array(p1.length + p2.length + p3.length + p4.length);
+    fullBody.set(p1, 0);
+    fullBody.set(p2, p1.length);
+    fullBody.set(p3, p1.length + p2.length);
+    fullBody.set(p4, p1.length + p2.length + p3.length);
+
+    const uploadRes = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body: fullBody,
+      },
+    );
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      throw new Error(`Google Drive upload failed (${uploadRes.status}): ${errText}`);
+    }
+
+    const driveData = (await uploadRes.json()) as { id: string; name?: string; mimeType?: string };
+
+    // Set public reader permission so everyone in chat can view/download
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${driveData.id}/permissions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          role: "reader",
+          type: "anyone",
+        }),
+      });
+    } catch (e) {
+      console.warn("Could not set public permission on Google Drive file:", e);
+    }
+
+    return {
+      id: driveData.id,
+      name: driveData.name || file.name,
+      size: file.size,
+      mimeType: driveData.mimeType || mimeType,
+      url: `gdrive://${driveData.id}`,
+      directUrl: getGDriveDirectUrl(driveData.id),
+    };
+  });
+
+// ─── Client Wrapper Function ─────────────────────────────────────────────────
+
 export async function uploadFileToGDrive(
   file: File,
   onProgress?: (progress: GDriveUploadProgress) => void,
 ): Promise<GDriveUploadResult> {
-  // Step 1: Call Server Function to get Resumable Upload URL & Auth Token
-  const { uploadLocation } = await initGDriveUploadServerFn({
-    data: {
-      name: file.name,
-      size: file.size,
-      mimeType: file.type || "application/octet-stream",
-    },
-  });
+  if (onProgress) {
+    onProgress({ loaded: Math.round(file.size * 0.2), total: file.size, percent: 20 });
+  }
 
-  // Step 2: Upload file via XHR to Google Drive Resumable URL with progress
-  const fileData = await new Promise<GDriveUploadResult>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", uploadLocation);
-    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+  const formData = new FormData();
+  formData.append("file", file);
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && e.total > 0 && onProgress) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        onProgress({ loaded: e.loaded, total: e.total, percent });
-      }
-    };
+  if (onProgress) {
+    onProgress({ loaded: Math.round(file.size * 0.5), total: file.size, percent: 50 });
+  }
 
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const data = JSON.parse(xhr.responseText) as {
-            id: string;
-            name?: string;
-            mimeType?: string;
-          };
-          if (onProgress) {
-            onProgress({ loaded: file.size, total: file.size, percent: 100 });
-          }
-          resolve({
-            id: data.id,
-            name: data.name || file.name,
-            size: file.size,
-            mimeType: data.mimeType || file.type,
-            url: `gdrive://${data.id}`,
-            directUrl: getGDriveDirectUrl(data.id),
-          });
-        } catch (err) {
-          reject(new Error("Lỗi đọc dữ liệu phản hồi từ Google Drive."));
-        }
-      } else {
-        reject(new Error(`Tải tệp lên Google Drive thất bại (${xhr.status}): ${xhr.responseText}`));
-      }
-    };
+  const result = await uploadToGDriveServerFn({ data: formData });
 
-    xhr.onerror = () => reject(new Error("Lỗi kết nối mạng khi tải tệp lên Google Drive."));
-    xhr.send(file);
-  });
+  if (onProgress) {
+    onProgress({ loaded: file.size, total: file.size, percent: 100 });
+  }
 
-  // Step 3: Set public reader permission via Server Function
-  await setGDrivePublicPermissionServerFn({ data: { fileId: fileData.id } });
-
-  return fileData;
+  return result;
 }
 
-/**
- * Returns ultra-fast Google CDN direct viewing URL for a Google Drive file ID.
- */
 export function getGDriveDirectUrl(fileId: string): string {
   return `https://lh3.googleusercontent.com/d/${fileId}`;
 }
 
-/**
- * Returns direct download URL for a Google Drive file ID.
- */
 export function getGDriveDownloadUrl(fileId: string): string {
   return `https://drive.google.com/uc?export=download&id=${fileId}`;
 }

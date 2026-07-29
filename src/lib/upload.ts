@@ -79,7 +79,16 @@ export async function uploadFile(
       contentType: gdriveRes.mimeType,
     };
   } catch (gdriveErr) {
-    console.warn("Google Drive upload failed, falling back to Supabase Storage:", gdriveErr);
+    console.error("Google Drive upload error:", gdriveErr);
+    // If file is > 50MB, Supabase will definitely fail, so throw Google Drive error directly
+    if (file.size > 50 * 1024 * 1024) {
+      throw new Error(
+        gdriveErr instanceof Error
+          ? gdriveErr.message
+          : "Không thể tải tệp lên kho Google Drive. Vui lòng thử lại.",
+      );
+    }
+    console.warn("Falling back to Supabase Storage for small file:", gdriveErr);
   }
 
   // Fallback: upload to Supabase Storage with real XHR progress tracking
