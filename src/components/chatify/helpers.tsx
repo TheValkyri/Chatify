@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   FileText,
   Folder,
+  Music,
   Paperclip,
   Send,
   X,
@@ -141,7 +142,13 @@ export function DraftChip({
       ) : (
         <div className="flex h-16 items-center gap-2 px-3 pr-8 select-none">
           <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/20 text-primary">
-            {d.kind === "folder" ? <Folder size={16} /> : <FileText size={16} />}
+            {d.kind === "folder" ? (
+              <Folder size={16} />
+            ) : d.kind === "audio" ? (
+              <Music size={16} />
+            ) : (
+              <FileText size={16} />
+            )}
           </div>
           <div className="min-w-0">
             <div className="max-w-[140px] truncate text-[12px] font-medium">{d.name}</div>
@@ -354,10 +361,217 @@ export function AttachmentView({
   if (att.kind === "image" || att.kind === "video") {
     return <TicketStub att={att} onPreview={onPreview} status={status} />;
   }
+  if (
+    att.kind === "audio" ||
+    (att.kind === "file" && /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(att.name))
+  ) {
+    return <AudioPlayerCard att={att} isMe={isMe} status={status} />;
+  }
   if (att.kind === "folder") {
     return <FolderCard att={att} status={status} />;
   }
   return <FileCard att={att} isMe={isMe} status={status} />;
+}
+
+export function AudioPlayerCard({
+  att,
+  isMe,
+  status,
+}: {
+  att: Attachment;
+  isMe: boolean;
+  status?: string;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const isUploading =
+    status === "sending" || (att.uploadProgress !== undefined && att.uploadProgress < 100);
+  const progress = att.uploadProgress ?? 0;
+  const { url: src } = useAttachmentUrl(att.url);
+
+  const togglePlay = () => {
+    if (isUploading || !audioRef.current || !src) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch((e) => console.error("Audio play error:", e));
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current && audioRef.current.duration) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isUploading || !audioRef.current || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const newTime = ratio * duration;
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const fmtTime = (secs: number) => {
+    if (!secs || isNaN(secs)) return "0:00";
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
+
+  const barHeights = [
+    40, 65, 30, 85, 45, 95, 60, 35, 75, 50, 90, 40, 70, 80, 45, 100, 55, 35, 80, 60, 40, 75, 30, 50,
+  ];
+
+  const progressRatio = duration > 0 ? currentTime / duration : 0;
+  const activeBarIndex = Math.floor(progressRatio * barHeights.length);
+
+  return (
+    <motion.div
+      whileHover={isUploading ? {} : { y: -1 }}
+      className={`flex flex-col w-[320px] rounded-2xl p-3.5 shadow-md border ${
+        isMe
+          ? "bg-primary text-primary-foreground border-primary/20"
+          : "bg-surface text-foreground border-border"
+      }`}
+    >
+      {src && (
+        <audio
+          ref={audioRef}
+          src={src}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onEnded={handleEnded}
+          preload="metadata"
+        />
+      )}
+
+      <div className="flex items-center gap-3">
+        {/* Play / Pause round button */}
+        <motion.button
+          whileHover={isUploading ? {} : { scale: 1.06 }}
+          whileTap={isUploading ? {} : { scale: 0.92 }}
+          disabled={isUploading || !src}
+          onClick={togglePlay}
+          className={`grid h-11 w-11 shrink-0 place-items-center rounded-full shadow-md transition-colors ${
+            isUploading
+              ? "bg-muted text-muted-foreground cursor-not-allowed"
+              : isMe
+                ? "bg-white text-primary hover:bg-white/90"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+          }`}
+          aria-label={isPlaying ? "Tạm dừng" : "Phát âm thanh"}
+        >
+          {isPlaying ? (
+            <span className="flex gap-1 items-center justify-center">
+              <span className="w-1.5 h-4 bg-current rounded-full" />
+              <span className="w-1.5 h-4 bg-current rounded-full" />
+            </span>
+          ) : (
+            <Play size={18} className="translate-x-0.5 fill-current" />
+          )}
+        </motion.button>
+
+        {/* Name, time counter & waveform */}
+        <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-[13px] font-semibold leading-tight">{att.name}</span>
+            <span className="shrink-0 font-mono text-[10.5px] opacity-80">
+              {duration > 0 ? fmtTime(currentTime) : att.size}
+            </span>
+          </div>
+
+          {/* Interactive Waveform Bars */}
+          {isUploading ? (
+            <div className="w-full">
+              <div className="flex justify-between text-[10.5px] font-semibold mb-1 opacity-90">
+                <span>Đang tải lên...</span>
+                <span className="font-mono">{progress}%</span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-black/20 overflow-hidden">
+                <div
+                  className="h-full bg-current transition-all duration-150 rounded-full"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={handleSeek}
+              className="flex items-center gap-[2.5px] h-6 w-full cursor-pointer group py-1"
+              title="Click để chuyển tới đoạn nhạc"
+            >
+              {barHeights.map((h, i) => {
+                const isActive = i <= activeBarIndex;
+                return (
+                  <motion.span
+                    key={i}
+                    animate={isPlaying && isActive ? { scaleY: [1, 1.25, 0.8, 1] } : { scaleY: 1 }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 0.6,
+                      delay: (i % 4) * 0.1,
+                    }}
+                    style={{ height: `${h}%` }}
+                    className={`flex-1 rounded-full transition-colors ${
+                      isActive
+                        ? isMe
+                          ? "bg-white"
+                          : "bg-primary"
+                        : isMe
+                          ? "bg-white/30"
+                          : "bg-muted-foreground/30 group-hover:bg-muted-foreground/50"
+                    }`}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Download Button */}
+        {!isUploading && (
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                await downloadAttachment(att);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
+              }
+            }}
+            title="Tải tệp âm thanh gốc"
+            className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition-colors ${
+              isMe
+                ? "text-white/80 hover:bg-white/20 hover:text-white"
+                : "text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+            }`}
+          >
+            <Download size={15} />
+          </motion.button>
+        )}
+      </div>
+    </motion.div>
+  );
 }
 
 export async function readEntry(entry: WebkitEntry, files: OriginalFile[]): Promise<void> {

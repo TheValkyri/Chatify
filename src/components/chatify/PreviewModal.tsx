@@ -83,6 +83,11 @@ export function PreviewModal({
                 playsInline
                 onError={refreshSrc}
               />
+            ) : att.kind === "audio" || /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(att.name) ? (
+              <div className="p-8 bg-surface rounded-2xl text-foreground text-center shadow-2xl flex flex-col items-center gap-4 min-w-[320px]">
+                <div className="font-semibold text-lg">{att.name}</div>
+                <audio src={src} controls className="w-full max-w-md" autoPlay={false} />
+              </div>
             ) : (
               <div className="p-8 bg-surface rounded-2xl text-foreground text-center">
                 <div className="font-semibold">{att.name}</div>

@@ -160,6 +160,16 @@ export function ChatArea({
           size: fmtSize(f.size),
         };
       }
+      if (type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name)) {
+        return {
+          id: crypto.randomUUID(),
+          file: f,
+          url: URL.createObjectURL(f),
+          kind: "audio",
+          name: f.name,
+          size: fmtSize(f.size),
+        };
+      }
       return {
         id: crypto.randomUUID(),
         file: f,
@@ -194,13 +204,13 @@ export function ChatArea({
   };
 
   const handleDraftPreview = (d: Draft) => {
-    if (d.kind === "image" || d.kind === "video") {
+    if (d.kind === "image" || d.kind === "video" || d.kind === "audio") {
       onPreview({
         kind: d.kind,
         name: d.name,
         size: d.size,
         dims: d.kind === "image" ? "Ảnh" : "",
-        duration: d.kind === "video" ? "Video" : "",
+        duration: d.kind === "video" ? "Video" : d.kind === "audio" ? "Audio" : "",
         url: d.url || "",
       });
     }

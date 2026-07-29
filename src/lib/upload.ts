@@ -35,6 +35,14 @@ export async function uploadFile(
   conversationId: string = "profile",
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<UploadResult> {
+  const MAX_SIZE_MB = 50;
+  const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+  if (file.size > MAX_SIZE_BYTES) {
+    throw new Error(
+      `Tệp "${file.name}" (${formatSize(file.size)}) vượt quá dung lượng cho phép. Giới hạn tối đa là ${MAX_SIZE_MB} MB.`,
+    );
+  }
+
   const id = crypto.randomUUID();
 
   if (IS_DEMO_MODE) {
@@ -94,8 +102,14 @@ export async function uploadFile(
             size: file.size,
             contentType: file.type,
           });
+        } else if (xhr.status === 413 || xhr.responseText.includes("Payload too large")) {
+          reject(
+            new Error(
+              `Tệp vượt quá dung lượng tối đa cho phép trên Supabase (${MAX_SIZE_MB} MB). Vui lòng chọn tệp nhỏ hơn.`,
+            ),
+          );
         } else {
-          reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`));
+          reject(new Error(`Tải tệp thất bại (${xhr.status}): ${xhr.responseText}`));
         }
       };
 
@@ -164,6 +178,17 @@ export function buildAttachment(upload: UploadResult, file: File): Attachment {
       duration: "Video",
       url: upload.url,
       thumbnailUrl: upload.thumbnailUrl,
+    };
+  }
+
+  if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(file.name)) {
+    return {
+      kind: "audio",
+      id: upload.id,
+      name: upload.name,
+      size: sizeStr,
+      duration: "Audio",
+      url: upload.url,
     };
   }
 

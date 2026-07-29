@@ -56,6 +56,17 @@ export type VideoAttachment = {
   source?: File; // client-only, never serialized
 };
 
+export type AudioAttachment = {
+  kind: "audio";
+  id?: string;
+  name: string;
+  size: string;
+  duration?: string;
+  url?: string;
+  uploadProgress?: number;
+  source?: File; // client-only, never serialized
+};
+
 export type FileAttachment = {
   kind: "file";
   id?: string;
@@ -79,7 +90,12 @@ export type FolderAttachment = {
   sourceFiles?: import("@/lib/file-transfer").OriginalFile[]; // client-only
 };
 
-export type Attachment = ImageAttachment | VideoAttachment | FileAttachment | FolderAttachment;
+export type Attachment =
+  | ImageAttachment
+  | VideoAttachment
+  | AudioAttachment
+  | FileAttachment
+  | FolderAttachment;
 
 // ─── Messages ───────────────────────────────────────────────────────────────
 export type MessageStatus = "local" | "sending" | "sent" | "delivered" | "read" | "failed";
@@ -172,7 +188,7 @@ export type Draft = {
   id: string;
   file?: File; // client-only, never serialized
   url?: string; // blob URL for preview, never serialized
-  kind: "image" | "video" | "file" | "folder";
+  kind: "image" | "video" | "audio" | "file" | "folder";
   name: string;
   size: string;
   meta?: string;
