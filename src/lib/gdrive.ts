@@ -1,137 +1,63 @@
 // ─── Google Drive API Storage Service ─────────────────────────────────────────
 // Connects Chatify directly to Google Drive 5TB storage via Server Function.
-// NOTE: Credentials are hardcoded because this is a private repo with < 10 users.
-// The service account only has write access to one specific GDrive folder.
-// For production apps, use environment variables via hosting provider dashboard.
+//
+// Uses OAuth2 Refresh Token flow (user's own credentials) instead of Service Account.
+// This ensures uploads count against the USER's 5TB quota, not the service account's 0-byte quota.
+//
+// Setup: Run `node scripts/gdrive-oauth-setup.cjs` once to get the refresh token.
 
 import { createServerFn } from "@tanstack/react-start";
 
 export const GDRIVE_FOLDER_ID = "1EhKOuWTR0TPk8H_o55_AwiCdfAs5vk9d";
 
-// ─── Service Account Credentials ────────────────────────────────────────────
+// ─── OAuth2 Credentials (User's own account with 5TB quota) ─────────────────
+// These are obtained from Google Cloud Console > Credentials > OAuth 2.0 Client ID
+// and by running the setup script `node scripts/gdrive-oauth-setup.cjs`
 
-const GDRIVE_CLIENT_EMAIL =
-  "chatify-drive@capable-sled-503905-r7.iam.gserviceaccount.com";
-
-const GDRIVE_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDDvz0/QNroVi3N
-Yg/xLQaFTTkjLSquW0T0EKisJijDGkA2lwi65wRYMmmXnizJHOY3y6YksgrZMBoa
-dHmP/l8uGjP+P4H8aFQd9gMnSd1VuWFQaiX3HnFGdF0VDltQjKwXORdEdN8nLRYo
-cGnjAoWesy7zbNx8GfHZOvmQExHyKNJZLIeoYFG7njbCd8C9pHAn2wV42CDE/a/H
-xg3nMmESjA9Do03mb9pVNE3223xQpisxsdJGl226K/FNi8gPYvOuQLdw3nWIBpEM
-Dw/lAfv8pqGnVwoepaWdS94FscXINQUgK9tQX/+4PTp5sPgPJMCr80y+WbvEBdoC
-FX7HF+sHAgMBAAECggEACFTsAPS8PJZqdar+XbgaZnMegvpJrkkxOqg43bb0FjXY
-VNqB4x6xJyXiK7NuWZMS034mELrJTmxHOCgMAo6Ds50m6GQAnuM77ViK0tHIi30M
-ANW7zvRrQuHyElLdnSSXsJdb/6xv0SWQo2EBiMmTMWmUDoVsLxYVnrbtZ24AXgu+
-s89OJFW/QG2jYarCrmb+T+fhACHWaGYr1WO2a1wkI6aVE4z2G7mzUDJ7UBUYiiJQ
-/FSR/r8v1n5m+yHoNQQRk0GCq4N3EKHuGQ0bgpadh8Uei3beutl4DVzYH+0RVpwE
-CSN+tQrojfzcsl4zEaXu7H8ef5MJzyrb0o7dWulCIQKBgQDmZ8S/Kx4BWt/0x4Pp
-AlEDKt3lztCiNNaumB/C0qcMxUOEssLhK+sT83RS2+Bzs+rBdwZNIlB2zgIRjFIc
-oE5GZGsaoYSPaXVvf1zbIDSzWZmD2RhQx7Dy2CzL1bIu04ZQPBUlsmTa7MMfofmq
-d3SZ2Iz1YanD1RPct01C2oSGJwKBgQDZfdzju6D4NtArvkcYL+g3LDvzYgCnVZgX
-2TII58yr6wU0hEzir26EOR0JmX9nk24s3tLE2Ug92KPL4f+XnjoFIYnQqMtSobXp
-KC+nX/phDxmRkbqNrn0goyzKzzTW57XCgUrleR+pDIFuA3SLUtu8snMNYCAgHGc6
-4Ra1LSxgIQKBgQCgtDoPmLRZ/5d7tPl1uU7mJa0WEBWHPdGLf8GPcrxfdOuuD71L
-rwVNKh61eHVqXlBcVneHr2puIyxgLv5KxykxgfMOZR//o2/sr+oFUMZRXipsQyzp
-kw8BovRDzC526MSjC/U4EOC1rjQ+yQxJ8P3cHKXctRzi4ajz5so12hJbOwKBgDYA
-GigxHfaDJYy24dAPlQid4wS7AI6LogfJ1bKAW0EUSWaQssZV6IrL43nOsuN0p5Zc
-fNiDWnyAnaqxolRy5NUBTsaQImuR2yjY4XwdSH1w0lhiZn9nI4pG+Yghim0Rev+g
-OohfWo0OndRC51zwZb6kUAyyIUfXxYnI+WpinPIBAoGBAJM5bz475J3ojwVk1Fvg
-yyfCikPPbqNNDHjtc193O3gOsaqXjdh5VHL2Wg+kVp+agwmku0bpRE1SZqRyOiUa
-e64vsCEpqQgZggcGuJORM68HvEtplmBN/wi1YBfhujr0KE3nSaOHdij74uTqUkNc
-0IfS1MERFBH8jtB3xydcneke
------END PRIVATE KEY-----
-`;
+const OAUTH_CLIENT_ID =
+  (import.meta.env.VITE_GDRIVE_OAUTH_CLIENT_ID as string | undefined) ?? "";
+const OAUTH_CLIENT_SECRET =
+  (import.meta.env.VITE_GDRIVE_OAUTH_CLIENT_SECRET as string | undefined) ?? "";
+const OAUTH_REFRESH_TOKEN =
+  (import.meta.env.VITE_GDRIVE_OAUTH_REFRESH_TOKEN as string | undefined) ?? "";
 
 const GDRIVE_TOKEN_URI = "https://oauth2.googleapis.com/token";
 
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
 /**
- * Converts PEM formatted RSA private key to CryptoKey using Web Crypto API.
+ * Gets an access token using OAuth2 Refresh Token flow.
+ * This uses the USER's credentials so uploads count against their 5TB quota.
  */
-async function importPrivateKey(pem: string): Promise<CryptoKey> {
-  const pemHeader = "-----BEGIN PRIVATE KEY-----";
-  const pemFooter = "-----END PRIVATE KEY-----";
-  const pemContents = pem.replace(pemHeader, "").replace(pemFooter, "").replace(/\s+/g, "");
-
-  const binaryDerString = atob(pemContents);
-  const binaryDer = new Uint8Array(binaryDerString.length);
-  for (let i = 0; i < binaryDerString.length; i++) {
-    binaryDer[i] = binaryDerString.charCodeAt(i);
+async function getGoogleDriveAccessToken(): Promise<string> {
+  if (!OAUTH_CLIENT_ID || !OAUTH_CLIENT_SECRET || !OAUTH_REFRESH_TOKEN) {
+    throw new Error(
+      "Google Drive OAuth2 chưa được cấu hình. " +
+        "Chạy `node scripts/gdrive-oauth-setup.cjs` để lấy refresh token, " +
+        "sau đó thiết lập VITE_GDRIVE_OAUTH_CLIENT_ID, VITE_GDRIVE_OAUTH_CLIENT_SECRET, " +
+        "và VITE_GDRIVE_OAUTH_REFRESH_TOKEN trong .env.local",
+    );
   }
 
-  return crypto.subtle.importKey(
-    "pkcs8",
-    binaryDer.buffer,
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      hash: "SHA-256",
-    },
-    false,
-    ["sign"],
-  );
-}
-
-function base64url(str: string | ArrayBuffer): string {
-  let bytes: Uint8Array;
-  if (typeof str === "string") {
-    bytes = new TextEncoder().encode(str);
-  } else {
-    bytes = new Uint8Array(str);
-  }
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-}
-
-/**
- * Generates OAuth2 Access Token for Google Service Account on Server (Cloudflare Worker/Nitro).
- */
-async function getGoogleDriveAccessTokenServer(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   if (cachedAccessToken && cachedAccessToken.expiresAt > now + 60) {
     return cachedAccessToken.token;
   }
 
-  const header = { alg: "RS256", typ: "JWT" };
-  const claimSet = {
-    iss: GDRIVE_CLIENT_EMAIL,
-    scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive",
-    aud: GDRIVE_TOKEN_URI,
-    exp: now + 3600,
-    iat: now,
-  };
-
-  const encodedHeader = base64url(JSON.stringify(header));
-  const encodedClaimSet = base64url(JSON.stringify(claimSet));
-  const unsignedToken = `${encodedHeader}.${encodedClaimSet}`;
-
-  const privateKey = await importPrivateKey(GDRIVE_PRIVATE_KEY);
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    privateKey,
-    new TextEncoder().encode(unsignedToken),
-  );
-
-  const jwt = `${unsignedToken}.${base64url(signature)}`;
-
   const res = await fetch(GDRIVE_TOKEN_URI, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
+      client_id: OAUTH_CLIENT_ID,
+      client_secret: OAUTH_CLIENT_SECRET,
+      refresh_token: OAUTH_REFRESH_TOKEN,
+      grant_type: "refresh_token",
     }),
   });
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Google Auth Token failed (${res.status}): ${errText}`);
+    throw new Error(`Google OAuth2 token refresh failed (${res.status}): ${errText}`);
   }
 
   const data = (await res.json()) as { access_token: string; expires_in?: number };
@@ -166,7 +92,7 @@ export const uploadToGDriveServerFn = createServerFn({ method: "POST" })
     const file = formData.get("file") as File | null;
     if (!file) throw new Error("Không có tệp nào được gửi lên server.");
 
-    const token = await getGoogleDriveAccessTokenServer();
+    const token = await getGoogleDriveAccessToken();
 
     // Multipart Upload to Google Drive API
     const metadata = {
