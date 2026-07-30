@@ -29,12 +29,11 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// ─── Custom Video Player Component ──────────────────────────────────────────
+// ─── High Performance Custom Video Player Component ─────────────────────────
 
 function CustomVideoPlayer({
   src,
   posterSrc,
-  name,
   onError,
 }: {
   src: string;
@@ -43,7 +42,6 @@ function CustomVideoPlayer({
   onError?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const seekBarRef = useRef<HTMLDivElement | null>(null);
 
@@ -51,17 +49,18 @@ function CustomVideoPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(true);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
 
-  // Hover preview tooltip state for scrubbing
+  // Hover preview tooltip state for scrubbing (single stream, 0 extra network requests)
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState(0);
 
   const controlsTimeoutRef = useRef<number | null>(null);
+  const bufferTimerRef = useRef<number | null>(null);
 
   // AutoPlay when video source or metadata is ready
   const handleLoadedMetadata = () => {
@@ -80,6 +79,20 @@ function CustomVideoPlayer({
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);
     }
+  };
+
+  // Only show buffering spinner if video stalls for > 800ms (prevents spinner flashing)
+  const handleWaiting = () => {
+    if (bufferTimerRef.current) window.clearTimeout(bufferTimerRef.current);
+    bufferTimerRef.current = window.setTimeout(() => {
+      setIsBuffering(true);
+    }, 800);
+  };
+
+  const handlePlaying = () => {
+    if (bufferTimerRef.current) window.clearTimeout(bufferTimerRef.current);
+    setIsBuffering(false);
+    setIsPlaying(true);
   };
 
   const togglePlay = useCallback(() => {
@@ -135,7 +148,7 @@ function CustomVideoPlayer({
     }, 3000);
   };
 
-  // Seek Bar Hover Handler for Mini Preview Thumbnail
+  // Seek Bar Hover Handler (Zero network overhead, 60fps smooth)
   const handleSeekBarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!seekBarRef.current || duration <= 0) return;
     const rect = seekBarRef.current.getBoundingClientRect();
@@ -145,10 +158,6 @@ function CustomVideoPlayer({
 
     setHoverX(offsetX);
     setHoverTime(time);
-
-    if (previewVideoRef.current) {
-      previewVideoRef.current.currentTime = time;
-    }
   };
 
   const handleSeekBarMouseLeave = () => {
@@ -174,7 +183,7 @@ function CustomVideoPlayer({
       onMouseMove={handleMouseMoveContainer}
       className="relative flex flex-col items-center justify-center max-h-[80vh] max-w-[90vw] overflow-hidden rounded-2xl bg-black shadow-2xl group select-none"
     >
-      {/* Primary Video Element */}
+      {/* Primary Single Video Element (100% network bandwidth allocated) */}
       <video
         ref={videoRef}
         src={src}
@@ -183,29 +192,16 @@ function CustomVideoPlayer({
         onClick={togglePlay}
         onLoadedMetadata={handleLoadedMetadata}
         onTimeUpdate={handleTimeUpdate}
-        onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => {
-          setIsBuffering(false);
-          setIsPlaying(true);
-        }}
+        onWaiting={handleWaiting}
+        onCanPlay={handlePlaying}
+        onPlaying={handlePlaying}
         onEnded={() => setIsPlaying(false)}
         onError={onError}
+        preload="auto"
         playsInline
       />
 
-      {/* Hidden Secondary Video Element for Hover Preview Thumbnail */}
-      {src && (
-        <video
-          ref={previewVideoRef}
-          src={src}
-          className="hidden"
-          preload="auto"
-          muted
-          playsInline
-        />
-      )}
-
-      {/* Loading Overlay (Replaces native unstyled loading box) */}
+      {/* Loading Overlay (Only shown if metadata loading or genuine >800ms network stall) */}
       {(!isLoaded || isBuffering) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs z-10 pointer-events-none">
           <Loader2 size={44} className="animate-spin text-primary mb-3" />
@@ -213,7 +209,7 @@ function CustomVideoPlayer({
         </div>
       )}
 
-      {/* Center Play/Pause Overlay Icon on Click/Hover */}
+      {/* Center Play/Pause Overlay Icon when paused */}
       {!isPlaying && isLoaded && !isBuffering && (
         <div
           onClick={togglePlay}
@@ -229,7 +225,7 @@ function CustomVideoPlayer({
         </div>
       )}
 
-      {/* Custom Modern Video Controls Bar (Screenshots 3 & 4) */}
+      {/* Custom Modern Video Controls Bar */}
       <AnimatePresence>
         {(showControls || !isPlaying) && isLoaded && (
           <motion.div
@@ -239,35 +235,31 @@ function CustomVideoPlayer({
             transition={{ duration: 0.2 }}
             className="absolute bottom-0 left-0 right-0 z-20 flex flex-col gap-2 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 text-white"
           >
-            {/* Interactive Seek Bar with Hover Preview Tooltip */}
+            {/* Interactive Seek Bar with Smooth Tooltip Badge */}
             <div
               ref={seekBarRef}
               onMouseMove={handleSeekBarMouseMove}
               onMouseLeave={handleSeekBarMouseLeave}
               onClick={handleSeekBarClick}
-              className="relative flex h-3 w-full cursor-pointer items-center py-1 group/bar"
+              className="relative flex h-4 w-full cursor-pointer items-center py-1 group/bar"
             >
-              {/* Floating Mini Hover Preview Tooltip (Matching Screenshot 4) */}
+              {/* Floating Mini Hover Tooltip (Timestamp + Poster Badge, 0 Network Overhead) */}
               {hoverTime !== null && (
                 <div
-                  className="absolute bottom-6 -translate-x-1/2 flex flex-col items-center pointer-events-none z-30"
+                  className="absolute bottom-7 -translate-x-1/2 flex flex-col items-center pointer-events-none z-30"
                   style={{ left: `${hoverX}px` }}
                 >
-                  <div className="overflow-hidden rounded-lg border border-white/20 bg-black/90 p-1 shadow-2xl backdrop-blur">
-                    <video
-                      src={src}
-                      className="h-20 w-36 rounded object-cover"
-                      muted
-                      playsInline
-                      ref={(el) => {
-                        if (el && hoverTime !== null) {
-                          el.currentTime = hoverTime;
-                        }
-                      }}
-                    />
-                    <div className="mt-1 text-center font-mono text-[11px] font-bold text-white">
+                  <div className="overflow-hidden rounded-lg border border-white/20 bg-black/90 px-2.5 py-1.5 shadow-2xl backdrop-blur flex items-center gap-2">
+                    {posterSrc && (
+                      <img
+                        src={posterSrc}
+                        alt=""
+                        className="h-9 w-16 rounded object-cover border border-white/10"
+                      />
+                    )}
+                    <span className="font-mono text-xs font-bold text-primary">
                       {formatTime(hoverTime)}
-                    </div>
+                    </span>
                   </div>
                 </div>
               )}
