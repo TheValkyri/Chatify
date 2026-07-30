@@ -1,10 +1,353 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Download, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  X,
+  Download,
+  Loader2,
+  CheckCircle2,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Maximize,
+  Minimize,
+} from "lucide-react";
 import { toast } from "sonner";
 import { downloadAttachment } from "@/lib/file-transfer";
 import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
 import type { Attachment } from "@/lib/types";
+
+// Helper to format seconds into mm:ss or hh:mm:ss
+function formatTime(seconds: number): string {
+  if (isNaN(seconds) || seconds < 0) return "0:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// ─── Custom Video Player Component ──────────────────────────────────────────
+
+function CustomVideoPlayer({
+  src,
+  posterSrc,
+  name,
+  onError,
+}: {
+  src: string;
+  posterSrc?: string;
+  name: string;
+  onError?: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const seekBarRef = useRef<HTMLDivElement | null>(null);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(true);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+
+  // Hover preview tooltip state for scrubbing
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverX, setHoverX] = useState(0);
+
+  const controlsTimeoutRef = useRef<number | null>(null);
+
+  // AutoPlay when video source or metadata is ready
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+      setIsLoaded(true);
+      setIsBuffering(false);
+      videoRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setIsPlaying(false));
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  };
+
+  const togglePlay = useCallback(() => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      videoRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setIsPlaying(false));
+    }
+  }, [isPlaying]);
+
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !isMuted;
+    setIsMuted(!isMuted);
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setVolume(val);
+    if (videoRef.current) {
+      videoRef.current.volume = val;
+      videoRef.current.muted = val === 0;
+      setIsMuted(val === 0);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current
+        .requestFullscreen()
+        .then(() => setIsFullscreen(true))
+        .catch(() => {});
+    } else {
+      document
+        .exitFullscreen()
+        .then(() => setIsFullscreen(false))
+        .catch(() => {});
+    }
+  };
+
+  // Auto-hide controls on mouse idle
+  const handleMouseMoveContainer = () => {
+    setShowControls(true);
+    if (controlsTimeoutRef.current) window.clearTimeout(controlsTimeoutRef.current);
+    controlsTimeoutRef.current = window.setTimeout(() => {
+      if (isPlaying) setShowControls(false);
+    }, 3000);
+  };
+
+  // Seek Bar Hover Handler for Mini Preview Thumbnail
+  const handleSeekBarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!seekBarRef.current || duration <= 0) return;
+    const rect = seekBarRef.current.getBoundingClientRect();
+    const offsetX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const percent = offsetX / rect.width;
+    const time = percent * duration;
+
+    setHoverX(offsetX);
+    setHoverTime(time);
+
+    if (previewVideoRef.current) {
+      previewVideoRef.current.currentTime = time;
+    }
+  };
+
+  const handleSeekBarMouseLeave = () => {
+    setHoverTime(null);
+  };
+
+  const handleSeekBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!seekBarRef.current || !videoRef.current || duration <= 0) return;
+    const rect = seekBarRef.current.getBoundingClientRect();
+    const offsetX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const percent = offsetX / rect.width;
+    const targetTime = percent * duration;
+
+    videoRef.current.currentTime = targetTime;
+    setCurrentTime(targetTime);
+  };
+
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div
+      ref={containerRef}
+      onMouseMove={handleMouseMoveContainer}
+      className="relative flex flex-col items-center justify-center max-h-[80vh] max-w-[90vw] overflow-hidden rounded-2xl bg-black shadow-2xl group select-none"
+    >
+      {/* Primary Video Element */}
+      <video
+        ref={videoRef}
+        src={src}
+        poster={posterSrc || undefined}
+        className="max-h-[75vh] max-w-[90vw] object-contain cursor-pointer"
+        onClick={togglePlay}
+        onLoadedMetadata={handleLoadedMetadata}
+        onTimeUpdate={handleTimeUpdate}
+        onWaiting={() => setIsBuffering(true)}
+        onPlaying={() => {
+          setIsBuffering(false);
+          setIsPlaying(true);
+        }}
+        onEnded={() => setIsPlaying(false)}
+        onError={onError}
+        playsInline
+      />
+
+      {/* Hidden Secondary Video Element for Hover Preview Thumbnail */}
+      {src && (
+        <video
+          ref={previewVideoRef}
+          src={src}
+          className="hidden"
+          preload="auto"
+          muted
+          playsInline
+        />
+      )}
+
+      {/* Loading Overlay (Replaces native unstyled loading box) */}
+      {(!isLoaded || isBuffering) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs z-10 pointer-events-none">
+          <Loader2 size={44} className="animate-spin text-primary mb-3" />
+          <div className="text-sm font-medium text-white/90">Đang tải video...</div>
+        </div>
+      )}
+
+      {/* Center Play/Pause Overlay Icon on Click/Hover */}
+      {!isPlaying && isLoaded && !isBuffering && (
+        <div
+          onClick={togglePlay}
+          className="absolute inset-0 grid place-items-center bg-black/20 cursor-pointer z-10"
+        >
+          <motion.div
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            className="grid h-16 w-16 place-items-center rounded-full bg-background/90 text-foreground backdrop-blur shadow-2xl"
+          >
+            <Play size={28} className="translate-x-0.5 fill-foreground" />
+          </motion.div>
+        </div>
+      )}
+
+      {/* Custom Modern Video Controls Bar (Screenshots 3 & 4) */}
+      <AnimatePresence>
+        {(showControls || !isPlaying) && isLoaded && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.2 }}
+            className="absolute bottom-0 left-0 right-0 z-20 flex flex-col gap-2 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 text-white"
+          >
+            {/* Interactive Seek Bar with Hover Preview Tooltip */}
+            <div
+              ref={seekBarRef}
+              onMouseMove={handleSeekBarMouseMove}
+              onMouseLeave={handleSeekBarMouseLeave}
+              onClick={handleSeekBarClick}
+              className="relative flex h-3 w-full cursor-pointer items-center py-1 group/bar"
+            >
+              {/* Floating Mini Hover Preview Tooltip (Matching Screenshot 4) */}
+              {hoverTime !== null && (
+                <div
+                  className="absolute bottom-6 -translate-x-1/2 flex flex-col items-center pointer-events-none z-30"
+                  style={{ left: `${hoverX}px` }}
+                >
+                  <div className="overflow-hidden rounded-lg border border-white/20 bg-black/90 p-1 shadow-2xl backdrop-blur">
+                    <video
+                      src={src}
+                      className="h-20 w-36 rounded object-cover"
+                      muted
+                      playsInline
+                      ref={(el) => {
+                        if (el && hoverTime !== null) {
+                          el.currentTime = hoverTime;
+                        }
+                      }}
+                    />
+                    <div className="mt-1 text-center font-mono text-[11px] font-bold text-white">
+                      {formatTime(hoverTime)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Seek Bar Background Track */}
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/30 transition-all group-hover/bar:h-2">
+                {/* Progress Fill */}
+                <div
+                  className="h-full bg-primary transition-all duration-75"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+
+              {/* Scrubber Knob */}
+              <div
+                className="absolute h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-white shadow-lg transition-transform group-hover/bar:scale-125"
+                style={{ left: `${progressPercent}%` }}
+              />
+            </div>
+
+            {/* Bottom Controls Buttons */}
+            <div className="flex items-center justify-between text-xs font-medium">
+              <div className="flex items-center gap-4">
+                {/* Play / Pause */}
+                <button
+                  onClick={togglePlay}
+                  className="p-1 text-white/90 hover:text-white transition-colors"
+                  aria-label={isPlaying ? "Tạm dừng" : "Phát"}
+                >
+                  {isPlaying ? (
+                    <Pause size={18} className="fill-current" />
+                  ) : (
+                    <Play size={18} className="fill-current" />
+                  )}
+                </button>
+
+                {/* Timestamp counter */}
+                <div className="font-mono text-white/90">
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                {/* Volume Control */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={toggleMute}
+                    className="p-1 text-white/90 hover:text-white transition-colors"
+                  >
+                    {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={isMuted ? 0 : volume}
+                    onChange={handleVolumeChange}
+                    className="w-16 accent-primary cursor-pointer h-1"
+                  />
+                </div>
+
+                {/* Fullscreen Toggle */}
+                <button
+                  onClick={toggleFullscreen}
+                  className="p-1 text-white/90 hover:text-white transition-colors"
+                  aria-label="Toàn màn hình"
+                >
+                  {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Main Preview Modal Component ───────────────────────────────────────────
 
 export function PreviewModal({
   open,
@@ -22,12 +365,10 @@ export function PreviewModal({
   const { url: posterSrc } = useAttachmentUrl(isVideo ? att?.poster : undefined);
   const [downloading, setDownloading] = useState(false);
 
-  // Reset download state when modal opens/closes
   useEffect(() => {
     if (!open) setDownloading(false);
   }, [open]);
 
-  // Close modal when pressing ESC
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -82,7 +423,7 @@ export function PreviewModal({
             <X size={24} />
           </button>
 
-          {/* Media Container (Stop click propagation so clicking media doesn't close modal) */}
+          {/* Media Container */}
           <div
             onClick={(e) => e.stopPropagation()}
             className="relative max-h-[80vh] max-w-[90vw] overflow-hidden rounded-2xl flex items-center justify-center cursor-default"
@@ -95,20 +436,16 @@ export function PreviewModal({
                 onError={refreshSrc}
               />
             ) : isVideo ? (
-              <video
+              <CustomVideoPlayer
                 src={src}
-                poster={posterSrc || undefined}
-                className="max-h-[80vh] max-w-[90vw] object-contain shadow-2xl rounded-2xl"
-                controls
-                autoPlay={false}
-                preload="metadata"
-                playsInline
+                posterSrc={posterSrc || undefined}
+                name={att.name}
                 onError={refreshSrc}
               />
             ) : att.kind === "audio" || /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(att.name) ? (
               <div className="p-8 bg-surface rounded-2xl text-foreground text-center shadow-2xl flex flex-col items-center gap-4 min-w-[320px]">
                 <div className="font-semibold text-lg">{att.name}</div>
-                <audio src={src} controls className="w-full max-w-md" autoPlay={false} />
+                <audio src={src} controls className="w-full max-w-md" autoPlay />
               </div>
             ) : (
               <div className="p-8 bg-surface rounded-2xl text-foreground text-center">
@@ -118,7 +455,7 @@ export function PreviewModal({
             )}
           </div>
 
-          {/* Media Info & Download Button (Stop propagation) */}
+          {/* Media Info & Download Button */}
           <div
             onClick={(e) => e.stopPropagation()}
             className="mt-6 flex flex-col items-center text-center text-white cursor-default"

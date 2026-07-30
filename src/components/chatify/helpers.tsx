@@ -603,16 +603,39 @@ export function TicketStub({
   status?: string;
 }) {
   const [downloading, setDownloading] = useState(false);
+  const [autoPoster, setAutoPoster] = useState<string>("");
   const isUploading =
     status === "sending" || (att.uploadProgress !== undefined && att.uploadProgress < 100);
   const progress = att.uploadProgress ?? 0;
-  const isMockVideo = att.kind === "video" && !att.source && att.poster?.startsWith("data:");
-  const rawSrc = att.kind === "image" ? att.url || "" : att.url || att.poster || "";
+  const attPoster = att.kind === "video" ? att.poster : undefined;
+  const isMockVideo = att.kind === "video" && !att.source && attPoster?.startsWith("data:");
+  const rawSrc = att.kind === "image" ? att.url || "" : att.url || attPoster || "";
   const { url: src, refresh: refreshSrc } = useAttachmentUrl(rawSrc);
+  const { url: posterSrc } = useAttachmentUrl(attPoster);
+
+  // Dynamic highlight thumbnail extraction for videos without poster
+  useEffect(() => {
+    if (att.kind === "video" && !attPoster && src && !src.startsWith("gdrive://")) {
+      let active = true;
+      import("@/lib/video-thumbnail").then(({ generateVideoThumbnail }) => {
+        generateVideoThumbnail(src, 2)
+          .then((thumb) => {
+            if (active && thumb) setAutoPoster(thumb);
+          })
+          .catch(() => {});
+      });
+      return () => {
+        active = false;
+      };
+    }
+  }, [att.kind, attPoster, src]);
+
   const durationText =
     att.kind === "video" && att.duration && att.duration !== "—" ? att.duration : "Video";
   const meta =
     att.kind === "image" ? `${att.dims || "Ảnh"} · ${att.size}` : `${durationText} · ${att.size}`;
+
+  const videoPosterImage = posterSrc || autoPoster;
 
   return (
     <motion.div
@@ -635,9 +658,9 @@ export function TicketStub({
             className="h-full w-full object-cover"
             onError={refreshSrc}
           />
-        ) : isMockVideo ? (
+        ) : isMockVideo || videoPosterImage ? (
           <img
-            src={src}
+            src={videoPosterImage || src}
             alt={att.name}
             className="h-full w-full object-cover"
             onError={refreshSrc}

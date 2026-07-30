@@ -188,7 +188,20 @@ export async function getAttachmentSignedUrl(path: string, expiresInSec = 3600):
 /**
  * Convert an uploaded file result into a typed Attachment for message sending.
  */
-export function buildAttachment(upload: UploadResult, file: File): Attachment {
+export async function buildAttachmentAsync(upload: UploadResult, file: File): Promise<Attachment> {
+  let poster: string | undefined = undefined;
+  if (file.type.startsWith("video/")) {
+    try {
+      const { generateVideoThumbnail } = await import("./video-thumbnail");
+      poster = await generateVideoThumbnail(file, 2);
+    } catch (e) {
+      console.warn("Could not generate video thumbnail:", e);
+    }
+  }
+  return buildAttachment(upload, file, poster);
+}
+
+export function buildAttachment(upload: UploadResult, file: File, poster?: string): Attachment {
   const sizeStr = formatSize(upload.size);
 
   if (file.type.startsWith("image/")) {
@@ -211,7 +224,8 @@ export function buildAttachment(upload: UploadResult, file: File): Attachment {
       size: sizeStr,
       duration: "Video",
       url: upload.url,
-      thumbnailUrl: upload.thumbnailUrl,
+      thumbnailUrl: poster || upload.thumbnailUrl,
+      poster: poster,
     };
   }
 

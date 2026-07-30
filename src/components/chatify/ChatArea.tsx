@@ -37,7 +37,7 @@ import {
   zipFolderToBlob,
   type OriginalFile,
 } from "@/lib/file-transfer";
-import { buildAttachment, uploadFile } from "@/lib/upload";
+import { buildAttachment, buildAttachmentAsync, uploadFile } from "@/lib/upload";
 import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
 import type {
   Attachment,
@@ -254,7 +254,7 @@ export function ChatArea({
         });
       });
 
-      const finalAttachment = buildAttachment(uploaded, fileToUpload);
+      const finalAttachment = await buildAttachmentAsync(uploaded, fileToUpload);
       if (d.kind === "folder") {
         const folderAttachment = finalAttachment as unknown as Extract<
           Attachment,
