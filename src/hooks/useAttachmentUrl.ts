@@ -1,24 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { getAttachmentSignedUrl } from "@/lib/upload";
-import { getGDriveProxyUrl } from "@/lib/gdrive";
+import { getGDriveDirectUrl } from "@/lib/gdrive";
 
 const signedUrlCache = new Map<string, { url: string; expires: number }>();
 
 /**
  * Invalidate a cached signed URL so it will be re-signed on next render.
- * Call this from an `onError` handler on `<img>` or `<video>` when a
- * signed URL has expired (HTTP 403).
  */
 export function invalidateSignedUrl(path: string): void {
   signedUrlCache.delete(path);
 }
 
 /**
- * Resolve a gdrive:// path to a proxy URL (synchronous, no async needed).
+ * Resolve a gdrive:// path to a direct media URL.
+ * Uses lh3 CDN for images and export=download for videos/audio.
  */
-function resolveGDrivePath(path: string): string {
+function resolveGDrivePath(path: string, mimeTypeOrKind?: string): string {
   const fileId = path.replace("gdrive://", "");
-  return getGDriveProxyUrl(fileId);
+  return getGDriveDirectUrl(fileId, mimeTypeOrKind);
 }
 
 /**
@@ -26,18 +25,20 @@ function resolveGDrivePath(path: string): string {
  *
  * Handles:
  * - blob: / data: / http: / https: → returned as-is
- * - gdrive://{fileId} → resolved to /api/gdrive-proxy?id={fileId} (synchronous)
+ * - gdrive://{fileId} → resolved synchronously to direct media stream URL
  * - Supabase storage paths → async signed URL via getAttachmentSignedUrl
  *
- * Returns a `refresh` callback to force re-signing (e.g. on img/video error).
+ * Returns a `refresh` callback to force re-signing.
  */
-export function useAttachmentUrl(path: string | undefined | null): {
+export function useAttachmentUrl(
+  path: string | undefined | null,
+  mimeTypeOrKind?: string,
+): {
   url: string;
   refresh: () => void;
 } {
   const [url, setUrl] = useState<string>(() => {
     if (!path) return "";
-    // Direct URLs: blob, data, http, https
     if (
       path.startsWith("blob:") ||
       path.startsWith("data:") ||
@@ -46,11 +47,9 @@ export function useAttachmentUrl(path: string | undefined | null): {
     ) {
       return path;
     }
-    // Google Drive: resolve to proxy URL immediately (no async needed)
     if (path.startsWith("gdrive://")) {
-      return resolveGDrivePath(path);
+      return resolveGDrivePath(path, mimeTypeOrKind);
     }
-    // Supabase paths: check cache
     const cached = signedUrlCache.get(path);
     if (cached && cached.expires > Date.now()) {
       return cached.url;
@@ -71,7 +70,6 @@ export function useAttachmentUrl(path: string | undefined | null): {
       setUrl("");
       return;
     }
-    // Direct URLs
     if (
       path.startsWith("blob:") ||
       path.startsWith("data:") ||
@@ -81,12 +79,11 @@ export function useAttachmentUrl(path: string | undefined | null): {
       setUrl(path);
       return;
     }
-    // Google Drive: resolve synchronously to proxy URL
     if (path.startsWith("gdrive://")) {
-      setUrl(resolveGDrivePath(path));
+      setUrl(resolveGDrivePath(path, mimeTypeOrKind));
       return;
     }
-    // Supabase Storage: check cache then async sign
+
     const cached = signedUrlCache.get(path);
     if (cached && cached.expires > Date.now()) {
       setUrl(cached.url);
@@ -111,7 +108,7 @@ export function useAttachmentUrl(path: string | undefined | null): {
     return () => {
       active = false;
     };
-  }, [path, retryCount]);
+  }, [path, mimeTypeOrKind, retryCount]);
 
   return { url, refresh };
 }

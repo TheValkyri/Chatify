@@ -5,7 +5,7 @@
 import { IS_DEMO_MODE, SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
 import { getSupabase } from "./supabase";
 import type { Attachment } from "./types";
-import { uploadFileToGDrive, getGDriveDirectUrl, getGDriveProxyUrl } from "./gdrive";
+import { uploadFileToGDrive, getGDriveDirectUrl } from "./gdrive";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -73,7 +73,9 @@ export async function uploadFile(
     return {
       id: gdriveRes.id,
       url: gdriveRes.url, // "gdrive://<file_id>"
-      thumbnailUrl: file.type.startsWith("image/") ? getGDriveProxyUrl(gdriveRes.id) : undefined,
+      thumbnailUrl: file.type.startsWith("image/")
+        ? getGDriveDirectUrl(gdriveRes.id, file.type)
+        : undefined,
       name: gdriveRes.name,
       size: gdriveRes.size,
       contentType: gdriveRes.mimeType,
