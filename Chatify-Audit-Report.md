@@ -7,7 +7,7 @@
 
 # 1. Tóm tắt điều hành (Executive Summary)
 
-**Tình trạng chung:** Chatify là một sản phẩm được xây bằng AI-agent (Lovable) theo kiểu "vá liên tục" — lịch sử 9 migration cho thấy rõ pattern: phát hiện lỗi bảo mật → vá → phát hiện lỗi khác → vá tiếp. Phần hạ tầng build (TypeScript, ESLint, Vite build) **sạch thật sự** — đã verify bằng cách chạy trực tiếp, không phải tin theo tài liệu dev. Nhưng lớp hạ tầng sạch này che giấu một tầng logic nghiệp vụ có nhiều lỗ hổng bảo mật nghiêm trọng và nhiều tính năng "trông như hoạt động nhưng không hoạt động".
+**Tình trạng chung:** Chatify là một sản phẩm được xây bằng AI code generation tool theo kiểu "vá liên tục" — lịch sử 9 migration cho thấy rõ pattern: phát hiện lỗi bảo mật → vá → phát hiện lỗi khác → vá tiếp. Phần hạ tầng build (TypeScript, ESLint, Vite build) **sạch thật sự** — đã verify bằng cách chạy trực tiếp, không phải tin theo tài liệu dev. Nhưng lớp hạ tầng sạch này che giấu một tầng logic nghiệp vụ có nhiều lỗ hổng bảo mật nghiêm trọng và nhiều tính năng "trông như hoạt động nhưng không hoạt động".
 
 **Có sẵn sàng production không? KHÔNG**, chưa. Có ít nhất 3 lỗ hổng bảo mật mức Critical và 4 lỗi chức năng mức Critical cần sửa trước khi mở cho người dùng thật, đặc biệt là lỗi khiến **tính năng cốt lõi nhất của app (gửi file/ảnh) bị vỡ với người nhận đang online**, và lỗ hổng khiến **số điện thoại của mọi user bị lộ cho bất kỳ ai đã đăng nhập**.
 
@@ -34,7 +34,7 @@
 - Deploy target: Cloudflare Workers (`nitro.preset = cloudflare-module`, xác nhận qua `wrangler.json` sinh ra khi build và `.wrangler/` trong repo).
 - Không có test framework nào trong `devDependencies` (không Vitest/Jest/Playwright/Cypress) — không có `npm test`.
 
-**Nguồn gốc dự án:** `.lovable/project.json` + `.lovable/plan.md` xác nhận app được khởi tạo như một **mockup frontend thuần** (không auth, không backend, dữ liệu giả cố định trong `chatify-mock.ts`), sau đó mới được nối vào Supabase thật ("Lovable Cloud"). Đây là bối cảnh quan trọng: rất nhiều lỗi trong báo cáo này là hệ quả trực tiếp của việc **không dọn sạch code/giả định thời kỳ mockup** khi chuyển sang backend thật (xem mục 7).
+**Nguồn gốc dự án:** Tài liệu khởi tạo ban đầu xác nhận app được khởi tạo như một **mockup frontend thuần** (không auth, không backend, dữ liệu giả cố định trong `chatify-mock.ts`), sau đó mới được nối vào Supabase thật ("Supabase Cloud"). Đây là bối cảnh quan trọng: rất nhiều lỗi trong báo cáo này là hệ quả trực tiếp của việc **không dọn sạch code/giả định thời kỳ mockup** khi chuyển sang backend thật (xem mục 7).
 
 **Runtime model:** SSR qua Cloudflare Worker (`src/server.ts` bọc handler Nitro, có cơ chế bắt lỗi thủ công `error-capture.ts` cho các lỗi SSR bị h3/Nitro nuốt mất — xem mục 6.10 về rủi ro state toàn cục chia sẻ giữa các request đồng thời trên cùng một Worker isolate). Ứng dụng chỉ có 2 route thực chất: `/` (màn hình chat chính, yêu cầu đăng nhập qua `beforeLoad`) và `/auth` (đăng nhập/đăng ký). Mọi màn hình khác (Settings, Friends, Invite, Create Chat...) đều là **modal trong cùng một trang**, không phải route riêng.
 
@@ -182,7 +182,7 @@
 
 ### 5.9 Dependency vulnerabilities (từ `npm audit` chạy thật)
 
-- Kết quả thật: **4 lỗ hổng (1 low, 3 high)** — toàn bộ nằm trong dependency của **build tooling** (`@babel/core`, `postcss` qua `lovable-tagger`/Tailwind, `js-yaml`/`brace-expansion` qua `@typescript-eslint`), **không nằm trong bundle chạy thực tế** mà người dùng cuối tải về. Rủi ro thực tế với người dùng cuối là thấp, nhưng nên chạy `npm audit fix` định kỳ như một thói quen vệ sinh dependency, đặc biệt trước khi các bản vá này bị khai thác trong pipeline CI/CD nội bộ (rủi ro chủ yếu nhắm vào máy build, không nhắm vào end-user).
+- Kết quả thật: **4 lỗ hổng (1 low, 3 high)** — toàn bộ nằm trong dependency của **build tooling** (`@babel/core`, `postcss` qua UI tagger/Tailwind, `js-yaml`/`brace-expansion` qua `@typescript-eslint`), **không nằm trong bundle chạy thực tế** mà người dùng cuối tải về. Rủi ro thực tế với người dùng cuối là thấp, nhưng nên chạy `npm audit fix` định kỳ như một thói quen vệ sinh dependency, đặc biệt trước khi các bản vá này bị khai thác trong pipeline CI/CD nội bộ (rủi ro chủ yếu nhắm vào máy build, không nhắm vào end-user).
 
 ---
 
@@ -264,7 +264,7 @@ _(Các bug trùng với mục 4 — realtime attachment vỡ, avatar/cover khôn
 
 # 8. Rủi ro bảo trì dài hạn (Long-term Maintenance Risks)
 
-1. **Hai file "chứa cả app":** `ChatifyApp.tsx` (2951 dòng) và `Modals.tsx` (1334 dòng) gộp gần như toàn bộ component, state, side-effect của ứng dụng. Điều này **đi ngược lại chính kế hoạch gốc của dự án** — `.lovable/plan.md` từng liệt kê rõ các file riêng biệt dự kiến (`Sidebar.tsx`, `ChatHeader.tsx`, `MessageList.tsx`, `MessageBubble.tsx`, `Composer.tsx`, `AttachmentTray.tsx`, `DetailPanel.tsx`...) nhưng không có file nào trong số đó thực sự tồn tại riêng — tất cả bị gộp vào 2 file khi triển khai. Hệ quả: mọi thay đổi nhỏ đều có nguy cơ ảnh hưởng chéo, review code khó, không thể lazy-load từng phần.
+1. **Hai file "chứa cả app":** `ChatifyApp.tsx` (2951 dòng) và `Modals.tsx` (1334 dòng) gộp gần như toàn bộ component, state, side-effect của ứng dụng. Điều này **đi ngược lại chính kế hoạch gốc của dự án** — kế hoạch thiết kế ban đầu từng liệt kê rõ các file riêng biệt dự kiến (`Sidebar.tsx`, `ChatHeader.tsx`, `MessageList.tsx`, `MessageBubble.tsx`, `Composer.tsx`, `AttachmentTray.tsx`, `DetailPanel.tsx`...) nhưng không có file nào trong số đó thực sự tồn tại riêng — tất cả bị gộp vào 2 file khi triển khai. Hệ quả: mọi thay đổi nhỏ đều có nguy cơ ảnh hưởng chéo, review code khó, không thể lazy-load từng phần.
 2. **Không có test suite tự động nào** — không Vitest/Jest/Playwright trong `devDependencies`, không `npm test`. Hai "bài test" duy nhất (`smoke-test.cjs`, `verify-supabase.cjs`) chạy tay, đụng database Supabase thật, không nằm trong CI. Nghĩa là **toàn bộ ~15 lỗi logic/bảo mật trong báo cáo này sẽ không bao giờ bị CI hiện tại bắt được**, vì CI (`.github/workflows/ci.yml`) chỉ chạy `lint` + `typecheck` + `build` — hoàn toàn không kiểm tra tính đúng đắn của business logic.
 3. **CI/CD chưa có bước deploy tự động** — tự tài liệu dev nội bộ (`docs/Chatify-Backend-Master-Plan-v4.md`) cũng ghi nhận đây là hạng mục còn thiếu (đã xác nhận: `ci.yml` chỉ verify, không có job deploy).
 4. **Logic nghiệp vụ bị lặp lại thay vì trích xuất dùng chung** — ví dụ rõ nhất: việc suy ra `name/username/avatar` từ `user_metadata` khi thiếu profile được viết tay lặp lại ở nhiều điểm vào trong `auth.ts` (signup, login, getServerUser, getCurrentUser) thay vì 1 helper dùng chung.
@@ -318,7 +318,7 @@ _(Các bug trùng với mục 4 — realtime attachment vỡ, avatar/cover khôn
 
 ### Bước 5 — Kiến trúc (trung hạn)
 
-16. Tách `ChatifyApp.tsx`/`Modals.tsx` theo đúng ranh giới đã vạch sẵn trong `.lovable/plan.md` ban đầu (mục 8, mục 11).
+16. Tách `ChatifyApp.tsx`/`Modals.tsx` theo đúng ranh giới đã vạch sẵn trong kế hoạch thiết kế ban đầu (mục 8, mục 11).
 17. `React.lazy()` cho các modal ít dùng (Call, Settings, Invite...) để giảm bundle đầu (mục 9).
 18. Thiết lập test suite tối thiểu (Vitest cho unit test các hàm trong `lib/`, Playwright cho happy-path e2e), đưa vào CI thay vì chỉ lint/typecheck/build.
 
@@ -335,7 +335,7 @@ _(Các bug trùng với mục 4 — realtime attachment vỡ, avatar/cover khôn
 **Tách `ChatifyApp.tsx` (2951 dòng) theo đúng ranh giới component đã lộ rõ qua các hàm hiện có** — mỗi `function XYZ(...)` đang định nghĩa trong file này nên trở thành 1 file riêng dưới `src/components/chatify/`:
 
 - `Rail.tsx`, `Sidebar.tsx`, `ChatHeader.tsx`, `ChatArea.tsx`, `MessageRow.tsx` (+`MediaGridItem`, `AttachmentView`, `TicketStub`, `FileCard`, `FolderCard` gộp vào `attachments/`), `Composer.tsx` (+`DraftChip`), `DetailPanel.tsx`, `PreviewModal.tsx`, `CreateChatModal.tsx`.
-- File `ChatifyApp.tsx` còn lại chỉ nên giữ: state điều phối cấp cao (`activeId`, các mutation hook, các modal-open state) và phần `return (...)` lắp ráp các component con — tương tự đúng ý định ban đầu trong `.lovable/plan.md`.
+- File `ChatifyApp.tsx` còn lại chỉ nên giữ: state điều phối cấp cao (`activeId`, các mutation hook, các modal-open state) và phần `return (...)` lắp ráp các component con — tương tự đúng ý định ban đầu trong kế hoạch thiết kế ban đầu.
 
 **Tách state/side-effect ra khỏi component vào các custom hook chuyên biệt:**
 

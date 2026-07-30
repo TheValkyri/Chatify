@@ -16,6 +16,8 @@ import {
   X,
   Play,
   Download,
+  Loader2,
+  CheckCircle2,
   ChevronDown,
   MessageSquare,
   Users,
@@ -600,6 +602,7 @@ export function TicketStub({
   onPreview: (att: Attachment) => void;
   status?: string;
 }) {
+  const [downloading, setDownloading] = useState(false);
   const isUploading =
     status === "sending" || (att.uploadProgress !== undefined && att.uploadProgress < 100);
   const progress = att.uploadProgress ?? 0;
@@ -695,25 +698,50 @@ export function TicketStub({
           </div>
         </div>
         <motion.button
-          whileHover={isUploading ? {} : { scale: 1.05 }}
-          whileTap={isUploading ? {} : { scale: 0.94 }}
-          disabled={isUploading}
+          whileHover={isUploading || downloading ? {} : { scale: 1.05 }}
+          whileTap={isUploading || downloading ? {} : { scale: 0.94 }}
+          disabled={isUploading || downloading}
           onClick={async () => {
-            if (isUploading) return;
+            if (isUploading || downloading) return;
+            setDownloading(true);
             try {
               await downloadAttachment(att);
+              toast.success(`Đã tải xuống "${att.name}"`, {
+                icon: <CheckCircle2 size={16} />,
+                duration: 3000,
+              });
             } catch (err) {
               toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
+            } finally {
+              setDownloading(false);
             }
           }}
-          title={isUploading ? "Đang tải lên server, chưa thể tải về" : "Tải tệp gốc"}
-          className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-medium transition-colors ${
+          title={
             isUploading
+              ? "Đang tải lên server, chưa thể tải về"
+              : downloading
+                ? "Đang tải xuống..."
+                : "Tải tệp gốc"
+          }
+          className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-medium transition-all duration-200 ${
+            isUploading || downloading
               ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
               : "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
           }`}
         >
-          <Download size={14} /> {isUploading ? "Đang gửi..." : "Tải gốc"}
+          {downloading ? (
+            <>
+              <Loader2 size={14} className="animate-spin" /> Đang tải...
+            </>
+          ) : isUploading ? (
+            <>
+              <Download size={14} /> Đang gửi...
+            </>
+          ) : (
+            <>
+              <Download size={14} /> Tải gốc
+            </>
+          )}
         </motion.button>
       </div>
     </motion.div>
@@ -749,6 +777,10 @@ export function FolderCard({
         );
         return;
       }
+      toast.success(`Đã tải xuống "${att.name}"`, {
+        icon: <CheckCircle2 size={16} />,
+        duration: 3000,
+      });
     } catch (error) {
       setDownloadError(error instanceof Error ? error.message : "Không thể tạo tệp ZIP.");
     } finally {
@@ -847,6 +879,7 @@ export function FileCard({
   isMe: boolean;
   status?: string;
 }) {
+  const [downloading, setDownloading] = useState(false);
   const isUploading =
     status === "sending" || (att.uploadProgress !== undefined && att.uploadProgress < 100);
   const progress = att.uploadProgress ?? 0;
@@ -883,25 +916,38 @@ export function FileCard({
         )}
       </div>
       <motion.button
-        whileTap={isUploading ? {} : { scale: 0.9 }}
-        disabled={isUploading}
+        whileTap={isUploading || downloading ? {} : { scale: 0.9 }}
+        disabled={isUploading || downloading}
         onClick={async () => {
-          if (isUploading) return;
+          if (isUploading || downloading) return;
+          setDownloading(true);
           try {
             await downloadAttachment(att);
+            toast.success(`Đã tải xuống "${att.name}"`, {
+              icon: <CheckCircle2 size={16} />,
+              duration: 3000,
+            });
           } catch (err) {
             toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
+          } finally {
+            setDownloading(false);
           }
         }}
-        title={isUploading ? "Đang tải lên server, chưa thể tải về" : "Tải tệp gốc"}
-        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition-colors ${
+        title={
           isUploading
+            ? "Đang tải lên server, chưa thể tải về"
+            : downloading
+              ? "Đang tải xuống..."
+              : "Tải tệp gốc"
+        }
+        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition-all duration-200 ${
+          isUploading || downloading
             ? "text-muted-foreground/40 cursor-not-allowed"
             : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
         }`}
         aria-label="Tải"
       >
-        <Download size={16} />
+        {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
       </motion.button>
     </motion.div>
   );

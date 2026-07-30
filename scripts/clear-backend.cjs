@@ -41,7 +41,7 @@ async function main() {
         `⚠️ Gọi RPC không thành công (có thể do RPC chưa được cập nhật trên Cloud): ${error.message}`,
       );
       console.log(
-        "💡 Mẹo: Vui lòng push migration lên Lovable/Cloud hoặc chạy SQL bên trong migration 20260728190000_clear_all_app_data.sql trên Supabase SQL Editor!",
+        "💡 Mẹo: Vui lòng push migration lên Supabase Dashboard hoặc chạy SQL bên trong migration 20260728190000_clear_all_app_data.sql trên Supabase SQL Editor!",
       );
     } else {
       console.log("✅ Đã dọn dẹp sạch toàn bộ dữ liệu trên Supabase Backend!");

@@ -371,7 +371,7 @@ Chạy trên **staging** với `VITE_SUPABASE_URL` trỏ vào staging project, s
 
 ## Cập nhật hướng dẫn Skill / AI Agent
 
-Audit lần này cho thấy 1 điều quan trọng cần điều chỉnh so với khuyến nghị trước: `.claude/skills/chatify-phase/` **chưa được tạo** — thay vào đó, `CLAUDE.md` đã có nhưng do 1 agent khác tự viết lại (ngắn gọn, đúng tinh thần nhưng không phải bản đã đưa), và repo vẫn giữ `AGENTS.md` (banner Lovable) + `.agents/skills/` (2 skill Codex: `full-output-enforcement`, `gpt-taste`, nguồn từ `Leonxlnx/taste-skill`). Nói cách khác: **repo này đang được nhiều công cụ AI khác nhau chạm vào** (Lovable agent, Codex, và giờ có dấu hiệu Claude Code cũng đã thực thi phần lớn Phase 0-7 rất trung thành với plan gốc). Vì vậy khuyến nghị điều chỉnh theo hướng thực tế hơn thay vì ép 1 công cụ duy nhất:
+Audit lần này cho thấy 1 điều quan trọng cần điều chỉnh so với khuyến nghị trước: `.claude/skills/chatify-phase/` **chưa được tạo** — thay vào đó, `CLAUDE.md` đã có nhưng do 1 agent khác tự viết lại (ngắn gọn, đúng tinh thần nhưng không phải bản đã đưa), và repo vẫn giữ `AGENTS.md` (banner ban đầu) + `.agents/skills/` (2 skill Codex: `full-output-enforcement`, `gpt-taste`, nguồn từ `Leonxlnx/taste-skill`). Nói cách khác: **repo này đang được nhiều công cụ AI khác nhau chạm vào** (AI agent ban đầu, Codex, và giờ có dấu hiệu Claude Code cũng đã thực thi phần lớn Phase 0-7 rất trung thành với plan gốc). Vì vậy khuyến nghị điều chỉnh theo hướng thực tế hơn thay vì ép 1 công cụ duy nhất:
 
 ### Nếu tiếp tục dùng Claude Code cho Phần A/B ở trên
 
@@ -379,7 +379,7 @@ Tạo `.claude/skills/chatify-phase/SKILL.md` như đã mô tả ở Master Plan
 
 ### Nếu Codex (`.agents/skills/`) là công cụ chính thực thi tiếp
 
-Không cần tạo skill mới theo format Claude Code — thay vào đó, thêm 1 dòng trỏ nguồn trong `AGENTS.md` (hiện chỉ có banner Lovable, chưa có phần hướng dẫn riêng cho việc thi công backend):
+Không cần tạo skill mới theo format Claude Code — thay vào đó, thêm 1 dòng trỏ nguồn trong `AGENTS.md` (hiện chỉ có banner ban đầu, chưa có phần hướng dẫn riêng cho việc thi công backend):
 
 ```markdown
 ## Kế hoạch backend

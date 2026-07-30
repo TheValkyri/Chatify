@@ -144,15 +144,11 @@ export async function downloadAttachment(att: import("./types").Attachment) {
   if (att.url) {
     if (att.url.startsWith("gdrive://")) {
       const fileId = att.url.replace("gdrive://", "");
-      const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = att.name;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const downloadUrl = `/api/gdrive-proxy?id=${encodeURIComponent(fileId)}&download=true&name=${encodeURIComponent(att.name)}`;
+      const response = await fetch(downloadUrl);
+      if (!response.ok) throw new Error(`Tải tệp thất bại (${response.status})`);
+      const blob = await response.blob();
+      saveBlob(blob, att.name);
       return;
     }
 

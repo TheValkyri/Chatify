@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Download } from "lucide-react";
+import { X, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { downloadAttachment } from "@/lib/file-transfer";
 import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
@@ -20,6 +20,12 @@ export function PreviewModal({
   const rawSrc = att?.url;
   const { url: src, refresh: refreshSrc } = useAttachmentUrl(rawSrc);
   const { url: posterSrc } = useAttachmentUrl(isVideo ? att?.poster : undefined);
+  const [downloading, setDownloading] = useState(false);
+
+  // Reset download state when modal opens/closes
+  useEffect(() => {
+    if (!open) setDownloading(false);
+  }, [open]);
 
   // Close modal when pressing ESC
   useEffect(() => {
@@ -40,6 +46,22 @@ export function PreviewModal({
         ? `${att.duration && att.duration !== "—" ? att.duration : "Video"} · ${att.size}`
         : att.size
     : "";
+
+  const handleDownload = async () => {
+    if (!att || downloading) return;
+    setDownloading(true);
+    try {
+      await downloadAttachment(att);
+      toast.success(`Đã tải xuống "${att.name}"`, {
+        icon: <CheckCircle2 size={16} />,
+        duration: 3000,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -104,19 +126,27 @@ export function PreviewModal({
             <div className="text-lg font-semibold">{att.name}</div>
             <div className="mt-1 text-sm text-white/60">{metaText}</div>
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  await downloadAttachment(att);
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
-                }
-              }}
-              className="mt-4 flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
+              whileHover={downloading ? {} : { scale: 1.05 }}
+              whileTap={downloading ? {} : { scale: 0.95 }}
+              disabled={downloading}
+              onClick={handleDownload}
+              className={`mt-4 flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold shadow-lg transition-all duration-200 ${
+                downloading
+                  ? "bg-primary/70 text-primary-foreground/80 cursor-wait"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+              }`}
             >
-              <Download size={16} /> Tải chất lượng gốc
+              {downloading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Đang tải xuống...
+                </>
+              ) : (
+                <>
+                  <Download size={16} />
+                  Tải chất lượng gốc
+                </>
+              )}
             </motion.button>
           </div>
         </motion.div>

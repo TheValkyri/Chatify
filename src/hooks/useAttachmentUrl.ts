@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getAttachmentSignedUrl } from "@/lib/upload";
-import { IS_DEMO_MODE } from "@/lib/config";
+import { getGDriveProxyUrl } from "@/lib/gdrive";
 
 const signedUrlCache = new Map<string, { url: string; expires: number }>();
 
@@ -14,8 +14,21 @@ export function invalidateSignedUrl(path: string): void {
 }
 
 /**
- * React hook to sign and cache a Supabase Storage path.
- * If the path is already a blob URL or web URL, returns it immediately.
+ * Resolve a gdrive:// path to a proxy URL (synchronous, no async needed).
+ */
+function resolveGDrivePath(path: string): string {
+  const fileId = path.replace("gdrive://", "");
+  return getGDriveProxyUrl(fileId);
+}
+
+/**
+ * React hook to resolve attachment paths to displayable URLs.
+ *
+ * Handles:
+ * - blob: / data: / http: / https: → returned as-is
+ * - gdrive://{fileId} → resolved to /api/gdrive-proxy?id={fileId} (synchronous)
+ * - Supabase storage paths → async signed URL via getAttachmentSignedUrl
+ *
  * Returns a `refresh` callback to force re-signing (e.g. on img/video error).
  */
 export function useAttachmentUrl(path: string | undefined | null): {
@@ -24,6 +37,7 @@ export function useAttachmentUrl(path: string | undefined | null): {
 } {
   const [url, setUrl] = useState<string>(() => {
     if (!path) return "";
+    // Direct URLs: blob, data, http, https
     if (
       path.startsWith("blob:") ||
       path.startsWith("data:") ||
@@ -32,6 +46,11 @@ export function useAttachmentUrl(path: string | undefined | null): {
     ) {
       return path;
     }
+    // Google Drive: resolve to proxy URL immediately (no async needed)
+    if (path.startsWith("gdrive://")) {
+      return resolveGDrivePath(path);
+    }
+    // Supabase paths: check cache
     const cached = signedUrlCache.get(path);
     if (cached && cached.expires > Date.now()) {
       return cached.url;
@@ -52,6 +71,7 @@ export function useAttachmentUrl(path: string | undefined | null): {
       setUrl("");
       return;
     }
+    // Direct URLs
     if (
       path.startsWith("blob:") ||
       path.startsWith("data:") ||
@@ -61,7 +81,12 @@ export function useAttachmentUrl(path: string | undefined | null): {
       setUrl(path);
       return;
     }
-
+    // Google Drive: resolve synchronously to proxy URL
+    if (path.startsWith("gdrive://")) {
+      setUrl(resolveGDrivePath(path));
+      return;
+    }
+    // Supabase Storage: check cache then async sign
     const cached = signedUrlCache.get(path);
     if (cached && cached.expires > Date.now()) {
       setUrl(cached.url);

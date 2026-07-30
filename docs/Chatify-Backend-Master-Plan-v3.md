@@ -485,7 +485,7 @@ Khó test bằng tay trong thời gian ngắn (cần đợi access token hết h
 
 ## Cập nhật hướng dẫn Skill / Cấu trúc AI Agent
 
-Xác nhận qua audit: repo hiện có `CLAUDE.md` (đã cập nhật tốt, mô tả đúng mapper layer + yêu cầu env-at-build-time), `AGENTS.md` (vẫn chỉ có banner Lovable gốc, chưa từng được bổ sung phần trỏ tới kế hoạch backend như tôi gợi ý ở Part 2), `.agents/skills/` (2 skill Codex không đổi), và **chưa có `.claude/skills/chatify-phase/`**. Cả 3 file kế hoạch (Part 1, 2, và giờ Part 3 này) đang nằm ở root repo.
+Xác nhận qua audit: repo hiện có `CLAUDE.md` (đã cập nhật tốt, mô tả đúng mapper layer + yêu cầu env-at-build-time), `AGENTS.md` (vẫn chỉ có banner ban đầu, chưa từng được bổ sung phần trỏ tới kế hoạch backend như tôi gợi ý ở Part 2), `.agents/skills/` (2 skill Codex không đổi), và **chưa có `.claude/skills/chatify-phase/`**. Cả 3 file kế hoạch (Part 1, 2, và giờ Part 3 này) đang nằm ở root repo.
 
 **Điều này cho thấy: công cụ thực thi 2 lần vừa qua nhiều khả năng là Claude Code (hoặc tương đương) được cung cấp trực tiếp nội dung file kế hoạch làm ngữ cảnh, KHÔNG thông qua cơ chế Skill chính thức** — và cách này vẫn đang hoạt động hiệu quả (bằng chứng: Phase 9-13 được thực thi rất trung thành). Vì vậy tôi không đề xuất thay đổi lớn về quy trình — chỉ 2 điều chỉnh nhỏ, thực tế, dựa trên bằng chứng đã thấy chứ không phải lý thuyết:
 
