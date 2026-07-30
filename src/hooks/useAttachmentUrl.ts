@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getAttachmentSignedUrl } from "@/lib/upload";
-import { getGDriveDirectUrl } from "@/lib/gdrive";
+import { getGDriveProxyUrl } from "@/lib/gdrive";
 
 const signedUrlCache = new Map<string, { url: string; expires: number }>();
 
@@ -12,12 +12,11 @@ export function invalidateSignedUrl(path: string): void {
 }
 
 /**
- * Resolve a gdrive:// path to a direct media URL.
- * Uses lh3 CDN for images and export=download for videos/audio.
+ * Resolve a gdrive:// path to a proxy URL.
  */
-function resolveGDrivePath(path: string, mimeTypeOrKind?: string): string {
+function resolveGDrivePath(path: string): string {
   const fileId = path.replace("gdrive://", "");
-  return getGDriveDirectUrl(fileId, mimeTypeOrKind);
+  return getGDriveProxyUrl(fileId);
 }
 
 /**
@@ -25,14 +24,14 @@ function resolveGDrivePath(path: string, mimeTypeOrKind?: string): string {
  *
  * Handles:
  * - blob: / data: / http: / https: → returned as-is
- * - gdrive://{fileId} → resolved synchronously to direct media stream URL
+ * - gdrive://{fileId} → resolved synchronously to /api/gdrive-proxy?id={fileId}
  * - Supabase storage paths → async signed URL via getAttachmentSignedUrl
  *
  * Returns a `refresh` callback to force re-signing.
  */
 export function useAttachmentUrl(
   path: string | undefined | null,
-  mimeTypeOrKind?: string,
+  _mimeTypeOrKind?: string,
 ): {
   url: string;
   refresh: () => void;
@@ -48,7 +47,7 @@ export function useAttachmentUrl(
       return path;
     }
     if (path.startsWith("gdrive://")) {
-      return resolveGDrivePath(path, mimeTypeOrKind);
+      return resolveGDrivePath(path);
     }
     const cached = signedUrlCache.get(path);
     if (cached && cached.expires > Date.now()) {
@@ -80,7 +79,7 @@ export function useAttachmentUrl(
       return;
     }
     if (path.startsWith("gdrive://")) {
-      setUrl(resolveGDrivePath(path, mimeTypeOrKind));
+      setUrl(resolveGDrivePath(path));
       return;
     }
 
@@ -108,7 +107,7 @@ export function useAttachmentUrl(
     return () => {
       active = false;
     };
-  }, [path, mimeTypeOrKind, retryCount]);
+  }, [path, retryCount]);
 
   return { url, refresh };
 }

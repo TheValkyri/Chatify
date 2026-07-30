@@ -144,25 +144,12 @@ export async function downloadAttachment(att: import("./types").Attachment) {
   if (att.url) {
     if (att.url.startsWith("gdrive://")) {
       const fileId = att.url.replace("gdrive://", "");
-      const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
-      try {
-        const response = await fetch(downloadUrl);
-        if (!response.ok) throw new Error(`Tải tệp thất bại (${response.status})`);
-        const blob = await response.blob();
-        saveBlob(blob, att.name);
-        return;
-      } catch (err) {
-        // Fallback: trigger direct link download if fetch is blocked
-        console.warn("Direct blob fetch failed, falling back to anchor trigger:", err);
-        const a = document.createElement("a");
-        a.href = downloadUrl;
-        a.download = att.name;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        return;
-      }
+      const downloadUrl = `/api/gdrive-proxy?id=${encodeURIComponent(fileId)}&download=true&name=${encodeURIComponent(att.name)}`;
+      const response = await fetch(downloadUrl);
+      if (!response.ok) throw new Error(`Tải tệp thất bại (${response.status})`);
+      const blob = await response.blob();
+      saveBlob(blob, att.name);
+      return;
     }
 
     try {

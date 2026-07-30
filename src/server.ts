@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { handleGDriveUploadRequest, handleGDriveProxyRequest } from "./lib/server-gdrive";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -46,6 +47,18 @@ function isH3SwallowedErrorBody(body: string): boolean {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const url = new URL(request.url);
+
+    // Intercept Google Drive Upload API (streaming binary upload directly to Google Drive)
+    if (url.pathname === "/api/gdrive-upload" && request.method === "POST") {
+      return await handleGDriveUploadRequest(request);
+    }
+
+    // Intercept Google Drive Proxy API (streaming video/media with HTTP 206 Range headers & download disposition)
+    if (url.pathname === "/api/gdrive-proxy") {
+      return await handleGDriveProxyRequest(request);
+    }
+
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
