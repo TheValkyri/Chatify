@@ -111,9 +111,8 @@ export async function handleGDriveUploadRequest(request: Request): Promise<Respo
       method: "PUT",
       headers: { "Content-Type": contentType },
       body: request.body,
-      // @ts-ignore - duplex is required for streaming request body in fetch
       duplex: "half",
-    });
+    } as RequestInit);
 
     if (!uploadRes.ok) {
       const errText = await uploadRes.text();
