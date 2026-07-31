@@ -6,9 +6,7 @@ import {
   fetchFriends,
   fetchIncomingFriendRequests,
   respondToFriendRequest,
-  type IncomingFriendRequest,
 } from "@/lib/api";
-import type { Friend } from "@/lib/types";
 
 // ─── Query Keys ─────────────────────────────────────────────────────────────
 

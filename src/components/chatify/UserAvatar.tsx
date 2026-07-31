@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
 
 export function UserAvatar({
   src,
@@ -12,10 +13,11 @@ export function UserAvatar({
   textClassName?: string;
 }) {
   const [error, setError] = useState(false);
+  const { url: displaySrc } = useAttachmentUrl(src);
 
   useEffect(() => {
     setError(false);
-  }, [src]);
+  }, [displaySrc]);
 
   const initials = useMemo(() => {
     if (!name) return "U";
@@ -44,9 +46,9 @@ export function UserAvatar({
     return gradients[Math.abs(hash) % gradients.length];
   }, [name]);
 
-  const isDataSvg = src?.startsWith("data:image/svg+xml");
+  const isDataSvg = displaySrc?.startsWith("data:image/svg+xml");
 
-  if (!src || error || isDataSvg) {
+  if (!displaySrc || error || isDataSvg) {
     return (
       <div
         className={`grid place-items-center bg-gradient-to-br ${bgGradient} font-semibold text-white shadow-xs shrink-0 select-none ${className}`}
@@ -58,7 +60,7 @@ export function UserAvatar({
 
   return (
     <img
-      src={src}
+      src={displaySrc}
       alt=""
       onError={() => setError(true)}
       className={`object-cover shrink-0 ${className}`}

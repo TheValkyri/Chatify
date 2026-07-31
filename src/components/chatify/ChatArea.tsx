@@ -1,56 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { EASE, springSoft, springSidebar } from "@/lib/animation";
-import {
-  Search,
-  Phone,
-  Video,
-  Info,
-  Plus,
-  Image as ImageIcon,
-  FileText,
-  Folder,
-  Paperclip,
-  Send,
-  X,
-  Play,
-  Download,
-  ChevronDown,
-  MessageSquare,
-  Users,
-  Settings,
-  Bell,
-  Check,
-  CheckCheck,
-  LogOut,
-  PanelLeftClose,
-  PanelLeft,
-  UserPlus,
-  MoreHorizontal,
-} from "lucide-react";
-import { STORAGE_KEYS } from "@/lib/config";
+import { springSoft } from "@/lib/animation";
+import { Paperclip } from "lucide-react";
 import { toast } from "sonner";
-import {
-  downloadFile,
-  downloadFolder,
-  downloadAttachment,
-  zipFolderToBlob,
-  type OriginalFile,
-} from "@/lib/file-transfer";
-import { buildAttachment, buildAttachmentAsync, uploadFile } from "@/lib/upload";
-import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
-import type {
-  Attachment,
-  Message,
-  Conversation,
-  Member,
-  Notification,
-  Friend,
-  Profile,
-  AuthUser,
-  Draft,
-} from "@/lib/types";
-import { LiquidTransition } from "./Modals";
+import { zipFolderToBlob, type OriginalFile } from "@/lib/file-transfer";
+import { buildAttachmentAsync, uploadFile } from "@/lib/upload";
+import type { Attachment, Message, Member, Draft } from "@/lib/types";
 import { MessageRow } from "./MessageRow";
 import { Composer } from "./Composer";
 import { fmtSize, getDroppedFiles, DayDivider } from "./helpers";
@@ -218,12 +173,22 @@ export function ChatArea({
 
   const handleAttachmentSend = async (d: Draft, now: string) => {
     const tempId = crypto.randomUUID();
-    const optimisticAttachment: Attachment = {
-      kind: d.kind,
-      name: d.name,
-      size: d.size,
-      url: d.url || "",
-    } as Attachment;
+    const optimisticAttachment: Attachment =
+      d.kind === "folder"
+        ? ({
+            kind: "folder",
+            name: d.name,
+            size: d.size,
+            url: d.url || "",
+            files: parseInt(d.meta ?? "0", 10) || (d.folderFiles?.length ?? 0),
+            children: d.folderFiles ?? [],
+          } as Attachment)
+        : ({
+            kind: d.kind,
+            name: d.name,
+            size: d.size,
+            url: d.url || "",
+          } as Attachment);
 
     onSend({
       id: tempId,

@@ -58,9 +58,4 @@ export const STORAGE_KEYS = {
   FRIENDS: "chatify.friends",
 } as const;
 
-// ─── API Config ─────────────────────────────────────────────────────────────
 
-/** Base URL for custom API routes (if using Edge Functions or custom server) */
-export const API_BASE = import.meta.env.VITE_API_URL as string | undefined;
-
-// ─── Feature Flags ──────────────────────────────────────────────────────────

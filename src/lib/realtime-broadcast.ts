@@ -91,3 +91,32 @@ export async function broadcastGroupEvent(
     }
   }
 }
+
+/**
+ * Leave and clean up a specific broadcast channel.
+ * Call when user navigates away from a conversation.
+ */
+export function leaveChannel(channelName: string) {
+  const channel = channelCache.get(channelName);
+  if (channel) {
+    const supabase = getSupabaseSafe();
+    if (supabase) {
+      supabase.removeChannel(channel);
+    }
+    channelCache.delete(channelName);
+  }
+}
+
+/**
+ * Leave and clean up ALL broadcast channels.
+ * Call on logout or app unmount.
+ */
+export function leaveAllChannels() {
+  const supabase = getSupabaseSafe();
+  if (supabase) {
+    for (const channel of channelCache.values()) {
+      supabase.removeChannel(channel);
+    }
+  }
+  channelCache.clear();
+}

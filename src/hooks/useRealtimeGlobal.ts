@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getSupabase } from "@/lib/supabase";
 import { IS_DEMO_MODE } from "@/lib/config";
@@ -19,6 +19,9 @@ export function useRealtimeGlobal(
   onEvictedFromConv?: (convId: string) => void,
 ) {
   const queryClient = useQueryClient();
+
+  const onEvictedRef = useRef(onEvictedFromConv);
+  onEvictedRef.current = onEvictedFromConv;
 
   useEffect(() => {
     if (IS_DEMO_MODE || !currentUserId) return;
@@ -52,8 +55,8 @@ export function useRealtimeGlobal(
             queryClient.invalidateQueries({ queryKey: conversationKeys.all });
 
             toast.error("Bạn đã bị xóa khỏi nhóm!");
-            if (onEvictedFromConv) {
-              onEvictedFromConv(convId);
+            if (onEvictedRef.current) {
+              onEvictedRef.current(convId);
             }
           } else if (event === "role_updated" || event === "ownership_transferred") {
             queryClient.invalidateQueries({ queryKey: conversationKeys.all });
@@ -134,5 +137,5 @@ export function useRealtimeGlobal(
       supabase.removeChannel(userChannel);
       supabase.removeChannel(sidebarChannel);
     };
-  }, [currentUserId, queryClient, onEvictedFromConv]);
+  }, [currentUserId, queryClient]);
 }

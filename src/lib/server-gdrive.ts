@@ -2,22 +2,26 @@
 // Executed on Cloudflare Workers / Nitro server inside src/server.ts.
 // Manages OAuth2 tokens, streams uploads directly to Google Drive Resumable API,
 // and proxies media streams (supporting HTTP 206 Range Requests for videos).
+//
+// CREDENTIALS: Set these as Cloudflare Worker environment variables:
+//   GDRIVE_FOLDER_ID, GDRIVE_CLIENT_ID, GDRIVE_CLIENT_SECRET, GDRIVE_REFRESH_TOKEN
 
-export const GDRIVE_FOLDER_ID = "1EhKOuWTR0TPk8H_o55_AwiCdfAs5vk9d";
-
-const p1 = "373867923923-46bgvs479s5ccg2dmm93psi4i8uemtu8";
-const p2 = ".apps.googleusercontent.com";
-const OAUTH_CLIENT_ID = p1 + p2;
-
-const s1 = "GOCSPX-";
-const s2 = "Fo8MYt0xM60A37kOS01OiPDO0uX0";
-const OAUTH_CLIENT_SECRET = s1 + s2;
-
-const r1 = "1//0gMbKtS4Lmyp0CgYIARAAGBASNwF-L9IrZeNM3AD5JsOmnE_IaZxKM8NeZc4caa";
-const r2 = "DypLDbIQGAhJUem35WBNTi5nXvTSyhjutubZs";
-const OAUTH_REFRESH_TOKEN = r1 + r2;
-
+export let GDRIVE_FOLDER_ID = "";
+let OAUTH_CLIENT_ID = "";
+let OAUTH_CLIENT_SECRET = "";
+let OAUTH_REFRESH_TOKEN = "";
 const GDRIVE_TOKEN_URI = "https://oauth2.googleapis.com/token";
+
+/**
+ * Initialize GDrive credentials from Cloudflare Worker env.
+ * Must be called once per request from the server entry point.
+ */
+export function initGDriveEnv(env: Record<string, string | undefined>) {
+  GDRIVE_FOLDER_ID = env.GDRIVE_FOLDER_ID || "";
+  OAUTH_CLIENT_ID = env.GDRIVE_CLIENT_ID || "";
+  OAUTH_CLIENT_SECRET = env.GDRIVE_CLIENT_SECRET || "";
+  OAUTH_REFRESH_TOKEN = env.GDRIVE_REFRESH_TOKEN || "";
+}
 
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
@@ -126,19 +130,7 @@ export async function handleGDriveUploadRequest(request: Request): Promise<Respo
 
     const driveData = (await uploadRes.json()) as { id: string };
 
-    // Step 3: Set public reader permission
-    try {
-      await fetch(`https://www.googleapis.com/drive/v3/files/${driveData.id}/permissions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ role: "reader", type: "anyone" }),
-      });
-    } catch (e) {
-      console.warn("Could not set permission:", e);
-    }
+
 
     return new Response(
       JSON.stringify({

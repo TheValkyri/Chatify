@@ -14,7 +14,6 @@ import type {
   SearchResult,
   SearchResultUser,
   InviteCode,
-  AuthUser,
   Profile,
 } from "./types";
 
@@ -56,6 +55,41 @@ export async function fetchConversations(): Promise<Conversation[]> {
   }
 
   const supabase = getSupabase();
+  const sessionRes = await supabase.auth.getSession();
+  const currentUserId = sessionRes.data.session?.user?.id;
+
+  if (currentUserId) {
+    const { data: unreadData, error: rpcErr } = await supabase.rpc(
+      "get_conversations_with_unread",
+      { p_user_id: currentUserId },
+    );
+
+    if (!rpcErr && unreadData && unreadData.length > 0) {
+      const convIds = unreadData.map((c: { id: string }) => c.id);
+      const { data: membersData } = await supabase
+        .from("conversation_members")
+        .select("conversation_id, user_id, role, profiles(name, avatar, username)")
+        .in("conversation_id", convIds);
+
+      const membersByConv = (membersData ?? []).reduce(
+        (acc, item) => {
+          if (!acc[item.conversation_id]) acc[item.conversation_id] = [];
+          acc[item.conversation_id].push(item);
+          return acc;
+        },
+        {} as Record<string, any[]>,
+      );
+
+      return unreadData.map((row: any) =>
+        mapConversationFromDb({
+          ...row,
+          unread: Number(row.unread_count ?? 0),
+          conversation_members: membersByConv[row.id] ?? [],
+        }),
+      );
+    }
+  }
+
   const { data, error } = await supabase
     .from("conversations")
     .select("*, conversation_members(user_id, role, profiles(name, avatar, username))")
@@ -650,6 +684,7 @@ export async function updateProfile(userId: string, updates: Partial<Profile>): 
       bio: updates.bio,
       cover: updates.cover,
       phone: updates.phone,
+      birthday: updates.birthday,
     })
     .eq("id", userId);
 
@@ -686,17 +721,13 @@ export async function joinConversation(convId: string, member: Member): Promise<
 export async function incrementInviteUsage(code: string): Promise<void> {
   if (IS_DEMO_MODE) {
     const registry = demoGet<Record<string, InviteCode>>(STORAGE_KEYS.INVITE_CODES, {});
-    const invite = registry[code];
-    if (invite) {
-      invite.uses += 1;
+    if (registry[code]) {
+      registry[code].uses = (registry[code].uses || 0) + 1;
       demoSet(STORAGE_KEYS.INVITE_CODES, registry);
     }
     return;
   }
-
-  const supabase = getSupabase();
-  const { error } = await supabase.rpc("increment_invite_uses", { invite_code: code });
-  if (error) throw new ApiError(500, error.message);
+  await joinViaInviteCode(code);
 }
 
 export type IncomingFriendRequest = {
@@ -779,10 +810,11 @@ export async function fetchProfilesByIds(ids: string[]): Promise<Member[]> {
 
 export async function joinViaInviteCode(code: string, joinerName?: string): Promise<string | void> {
   if (IS_DEMO_MODE) {
-    await incrementInviteUsage(code);
     const registry = demoGet<Record<string, InviteCode>>(STORAGE_KEYS.INVITE_CODES, {});
     const invite = registry[code];
     if (invite) {
+      invite.uses = (invite.uses || 0) + 1;
+      demoSet(STORAGE_KEYS.INVITE_CODES, registry);
       const nameStr = joinerName ?? "Người dùng";
       await sendSystemMessage(invite.groupId, `${nameStr} đã tham gia nhóm qua mã mời`);
       return invite.groupId;

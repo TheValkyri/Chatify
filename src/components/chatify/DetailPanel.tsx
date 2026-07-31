@@ -1,55 +1,15 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { EASE, springSoft, springSidebar } from "@/lib/animation";
+import { springSoft, springSidebar } from "@/lib/animation";
 import {
-  Search,
-  Phone,
-  Video,
-  Info,
-  Plus,
-  Image as ImageIcon,
   FileText,
   Folder,
-  Paperclip,
-  Send,
-  X,
-  Play,
-  Download,
-  ChevronDown,
-  MessageSquare,
-  Users,
-  Settings,
-  Bell,
-  Check,
-  CheckCheck,
   LogOut,
-  PanelLeftClose,
-  PanelLeft,
   UserPlus,
-  MoreHorizontal,
 } from "lucide-react";
-import { STORAGE_KEYS } from "@/lib/config";
 import { toast } from "sonner";
-import {
-  downloadFile,
-  downloadFolder,
-  downloadAttachment,
-  zipFolderToBlob,
-  type OriginalFile,
-} from "@/lib/file-transfer";
-import { buildAttachment, uploadFile } from "@/lib/upload";
-import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
-import type {
-  Attachment,
-  Message,
-  Conversation,
-  Member,
-  Notification,
-  Friend,
-  Profile,
-  AuthUser,
-  Draft,
-} from "@/lib/types";
+import { downloadAttachment } from "@/lib/file-transfer";
+import type { Attachment, Message, Conversation, Member, AuthUser } from "@/lib/types";
 import { UserAvatar } from "./UserAvatar";
 import { EmptyHint, MediaGridItem, MemberRowActions } from "./helpers";
 

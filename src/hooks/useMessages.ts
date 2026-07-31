@@ -22,7 +22,6 @@ export function useMessages(convId: string | null) {
     queryFn: () => fetchMessages(convId!),
     enabled: !!convId,
     staleTime: 1000 * 2,
-    refetchInterval: 3000,
   });
 }
 
@@ -69,49 +68,64 @@ export function useSendMessage(convId: string | null) {
     onError: (_, msg, context) => {
       if (!convId || !context) return;
 
-      if (context.previousMessages) {
+      if (context.previousMessages !== undefined) {
+        // Rollback to the snapshot taken before the optimistic update
         queryClient.setQueryData(messageKeys.all(convId), context.previousMessages);
-      } else {
-        // Mark the failed message
-        queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) =>
-          (old ?? []).map((m) => (m.id === msg.id ? { ...m, status: "failed" } : m)),
-        );
       }
+      // Always mark the failed message so user sees the error state
+      queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) =>
+        (old ?? []).map((m) => (m.id === msg.id ? { ...m, status: "failed" } : m)),
+      );
     },
   });
 }
 
 /**
  * Hook to update a specific message in cache AND persist attachment to DB.
+ * Uses useMutation for proper error handling and rollback.
  */
 export function useUpdateMessage(convId: string) {
   const queryClient = useQueryClient();
-  return (messageId: string, patch: Partial<Message>) => {
-    // Always update local cache immediately
-    queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) =>
-      old?.map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
-    );
 
-    // If the patch contains a final attachment with a non-blob URL, persist to DB
-    if (
-      patch.attachment &&
-      patch.status === "sent" &&
-      patch.attachment.url &&
-      !patch.attachment.url.startsWith("blob:")
-    ) {
-      import("@/lib/config").then(({ IS_DEMO_MODE }) => {
-        if (IS_DEMO_MODE) return;
-        import("@/lib/supabase").then(({ getSupabase }) => {
+  const mutation = useMutation({
+    mutationFn: async ({ messageId, patch }: { messageId: string; patch: Partial<Message> }) => {
+      // If the patch contains a final attachment with a non-blob URL, persist to DB
+      if (
+        patch.attachment &&
+        patch.status === "sent" &&
+        patch.attachment.url &&
+        !patch.attachment.url.startsWith("blob:")
+      ) {
+        const { IS_DEMO_MODE } = await import("@/lib/config");
+        if (!IS_DEMO_MODE) {
+          const { getSupabase } = await import("@/lib/supabase");
           const supabase = getSupabase();
-          supabase
+          const { error } = await supabase
             .from("messages")
             .update({ attachment: patch.attachment })
-            .eq("id", messageId)
-            .then(({ error }) => {
-              if (error) console.error("Failed to persist attachment to DB:", error.message);
-            });
-        });
-      });
-    }
+            .eq("id", messageId);
+          if (error) throw new Error(`Failed to persist attachment: ${error.message}`);
+        }
+      }
+      return { messageId, patch };
+    },
+    onMutate: async ({ messageId, patch }) => {
+      await queryClient.cancelQueries({ queryKey: messageKeys.all(convId) });
+      const previous = queryClient.getQueryData<Message[]>(messageKeys.all(convId));
+      queryClient.setQueryData<Message[]>(messageKeys.all(convId), (old) =>
+        old?.map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
+      );
+      return { previous };
+    },
+    onError: (err, _, context) => {
+      console.error("Failed to update message:", err);
+      if (context?.previous) {
+        queryClient.setQueryData(messageKeys.all(convId), context.previous);
+      }
+    },
+  });
+
+  return (messageId: string, patch: Partial<Message>) => {
+    mutation.mutate({ messageId, patch });
   };
 }

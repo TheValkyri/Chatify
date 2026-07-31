@@ -3,9 +3,13 @@ const { URL } = require("url");
 const fs = require("fs");
 const path = require("path");
 
-const OAUTH_CLIENT_ID =
-  "373867923923-46bgvs479s5ccg2dmm93psi4i8uemtu8" + ".apps.googleusercontent.com";
-const OAUTH_CLIENT_SECRET = "GOCSPX-" + "Fo8MYt0xM60A37kOS01OiPDO0uX0";
+if (!process.env.GDRIVE_CLIENT_ID || !process.env.GDRIVE_CLIENT_SECRET) {
+  console.error('ERROR: Set GDRIVE_CLIENT_ID and GDRIVE_CLIENT_SECRET environment variables.');
+  process.exit(1);
+}
+
+const OAUTH_CLIENT_ID = process.env.GDRIVE_CLIENT_ID;
+const OAUTH_CLIENT_SECRET = process.env.GDRIVE_CLIENT_SECRET;
 
 const REDIRECT_URI = "http://localhost:3456/callback";
 const SCOPES = "https://www.googleapis.com/auth/drive";

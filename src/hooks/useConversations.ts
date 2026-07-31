@@ -18,7 +18,6 @@ import type { Conversation, Member } from "@/lib/types";
 
 export const conversationKeys = {
   all: ["conversations"] as const,
-  detail: (id: string) => ["conversations", id] as const,
 };
 
 // ─── Hooks ──────────────────────────────────────────────────────────────────
@@ -31,7 +30,6 @@ export function useConversations() {
     queryKey: conversationKeys.all,
     queryFn: fetchConversations,
     staleTime: 1000 * 2,
-    refetchInterval: 3000,
   });
 }
 

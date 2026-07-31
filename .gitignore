@@ -35,3 +35,16 @@ supabase/.temp
 # Credentials
 capable-sled-*.json
 
+.aider*
+
+# MCP config (may contain API keys)
+mcp_config.json
+
+# Temporary deploy files
+scripts/.temp_pwd
+
+# Development artifacts & IDE agent configs
+audit_prompt.txt
+plan/
+.agents/
+.gemini/

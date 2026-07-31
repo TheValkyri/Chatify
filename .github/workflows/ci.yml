@@ -38,3 +38,6 @@ jobs:
         env:
           VITE_SUPABASE_URL: "https://mock-supabase-url.supabase.co"
           VITE_SUPABASE_ANON_KEY: "mock-supabase-anon-key"
+
+      - name: Run Tests
+        run: npm run test

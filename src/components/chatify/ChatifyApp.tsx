@@ -1,33 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useAttachmentUrl } from "@/hooks/useAttachmentUrl";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
-  Search,
-  Phone,
-  Video,
-  Info,
   Plus,
-  Image as ImageIcon,
-  FileText,
-  Folder,
-  Paperclip,
-  Send,
-  X,
-  Play,
-  Download,
-  ChevronDown,
   MessageSquare,
+  Bell,
   Users,
   Settings,
-  Bell,
-  Check,
-  CheckCheck,
-  LogOut,
   PanelLeftClose,
   PanelLeft,
-  UserPlus,
-  MoreHorizontal,
+  LogOut,
 } from "lucide-react";
 import { avatar as createAvatar } from "@/lib/chatify-mock";
 import type {
@@ -39,23 +21,13 @@ import type {
   Friend,
   Profile,
   AuthUser,
-  Draft,
 } from "@/lib/types";
-import {
-  downloadFile,
-  downloadFolder,
-  downloadAttachment,
-  zipFolderToBlob,
-  type OriginalFile,
-} from "@/lib/file-transfer";
 import { toast } from "sonner";
 import { STORAGE_KEYS, IS_DEMO_MODE } from "@/lib/config";
 import {
   useConversations,
   useCreateConversation,
   useDeleteConversation,
-  useUpdateConversation,
-  useUpdateMemberRole,
   useRemoveMember,
   useTransferOwnership,
   useJoinConversation,
@@ -66,24 +38,18 @@ import { useRealtimeGlobal } from "@/hooks/useRealtimeGlobal";
 import { usePresence } from "@/hooks/usePresence";
 import { useFriends } from "@/hooks/useFriends";
 import {
-  searchUsers,
   sendFriendRequest,
   markMessagesAsRead,
   updateProfile,
-  incrementInviteUsage,
   fetchProfilesByIds,
   fetchProfile,
   fetchIncomingFriendRequests,
 } from "@/lib/api";
-import { uploadFile, buildAttachment } from "@/lib/upload";
 import { THEMES, applyTheme, type ThemeDef } from "./themes";
-import { EASE, springSoft, springSidebar } from "@/lib/animation";
 import { Sidebar } from "./Sidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatArea } from "./ChatArea";
-import { Composer } from "./Composer";
 import { DetailPanel } from "./DetailPanel";
-import { MessageRow } from "./MessageRow";
 import { PreviewModal } from "./PreviewModal";
 import { SystemResetModal } from "./SystemResetModal";
 import { CreateChatModal } from "./CreateChatModal";
@@ -109,9 +75,6 @@ import {
 
 type Modal = null | "profile" | "settings" | "notifications" | "friends";
 type LiquidPulse = { key: number; color: string; x: number; y: number } | null;
-
-/* --------------------------- Notifications (empty by default) ------------ */
-const seedNotifications: Notification[] = [];
 
 // Seed friends will be dynamically generated in the component from the conversation list
 
@@ -143,8 +106,6 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
   const updateMessage = useUpdateMessage(activeId || "");
   const createConvMutation = useCreateConversation();
   const deleteConvMutation = useDeleteConversation();
-  const updateConvMutation = useUpdateConversation();
-  const updateMemberRoleMutation = useUpdateMemberRole();
   const removeMemberMutation = useRemoveMember();
   const transferOwnershipMutation = useTransferOwnership();
   const joinConvMutation = useJoinConversation();
@@ -268,6 +229,7 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
             cover: p.cover || prev.cover,
             bio: p.bio || prev.bio,
             phone: p.phone || prev.phone,
+            birthday: p.birthday || prev.birthday,
           }));
         }
       })
@@ -740,11 +702,15 @@ export function ChatifyApp({ session, onSignOut }: { session: AuthUser; onSignOu
         onAddFriend={() => {
           if (profileMember) {
             setAddedFriendNames((prev) => [...prev, profileMember.name]);
+            sendFriendRequest(profileMember.id, "Chào bạn, mình kết bạn nhé!").catch(console.error);
+            toast.success(`Đã gửi lời mời kết bạn tới ${profileMember.name}`);
           }
         }}
         onStartChat={() => {
           if (profileMember) {
-            const existing = convs.find((c) => !c.isGroup && c.name === profileMember.name);
+            const existing = convs.find(
+              (c) => !c.isGroup && c.members.some((m) => m.id === profileMember.id),
+            );
             if (existing) {
               setActiveId(existing.id);
             } else {
@@ -913,235 +879,3 @@ function Rail({
 
 /* ======================== MEDIA GRID ITEM (extracted to fix hook rules) ==== */
 
-/* ============================== ATTACHMENTS ============================== */
-
-function TicketStub({
-  att,
-  onPreview,
-  status,
-}: {
-  att: Extract<Attachment, { kind: "image" | "video" }>;
-  onPreview: (att: Attachment) => void;
-  status?: string;
-}) {
-  const isMockVideo = att.kind === "video" && !att.source && att.poster?.startsWith("data:");
-  const rawSrc = att.kind === "image" ? att.url || "" : att.poster || att.url || "";
-  const { url: src, refresh: refreshSrc } = useAttachmentUrl(rawSrc);
-  const meta = att.kind === "image" ? `${att.dims} · ${att.size}` : `${att.duration} · ${att.size}`;
-  return (
-    <motion.div
-      whileHover={{ y: -2 }}
-      transition={{ duration: 0.2, ease: EASE }}
-      className="w-[380px] overflow-hidden rounded-[22px] bg-surface shadow-xl shadow-black/20"
-    >
-      <div
-        className="relative cursor-pointer h-56 w-full overflow-hidden bg-muted"
-        onClick={() => onPreview(att)}
-      >
-        {att.kind === "image" ? (
-          <img
-            src={src}
-            alt={att.name}
-            className="h-full w-full object-cover"
-            onError={refreshSrc}
-          />
-        ) : isMockVideo ? (
-          <img
-            src={src}
-            alt={att.name}
-            className="h-full w-full object-cover"
-            onError={refreshSrc}
-          />
-        ) : (
-          <video
-            src={src}
-            className="h-full w-full object-cover"
-            preload="metadata"
-            muted
-            playsInline
-            onError={refreshSrc}
-          />
-        )}
-        {att.kind === "video" && (
-          <div className="absolute inset-0 grid place-items-center bg-black/10">
-            <motion.div
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.94 }}
-              className="grid h-14 w-14 place-items-center rounded-full bg-background/85 backdrop-blur"
-            >
-              <Play size={22} className="translate-x-0.5 fill-foreground text-foreground" />
-            </motion.div>
-          </div>
-        )}
-        {status === "sending" && att.uploadProgress !== undefined && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
-            <div
-              className="h-full bg-primary transition-all duration-200"
-              style={{ width: `${att.uploadProgress}%` }}
-            />
-          </div>
-        )}
-      </div>
-      <div className="ticket-perf h-3.5" />
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
-        <div className="min-w-0">
-          <div className="truncate text-[13.5px] font-medium">{att.name}</div>
-          <div className="mt-0.5 text-[11.5px] text-muted-foreground">
-            {att.url && !att.url.startsWith("blob:")
-              ? "Đã lưu trên máy chủ"
-              : att.source
-                ? "Bản gốc (phiên này)"
-                : "Tệp mẫu"}{" "}
-            · {meta}
-          </div>
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.94 }}
-          onClick={async () => {
-            try {
-              await downloadAttachment(att);
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
-            }
-          }}
-          title="Tải tệp gốc"
-          className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-[12.5px] font-medium text-primary-foreground"
-        >
-          <Download size={14} /> Tải gốc
-        </motion.button>
-      </div>
-    </motion.div>
-  );
-}
-
-function FileCard({ att, isMe }: { att: Extract<Attachment, { kind: "file" }>; isMe: boolean }) {
-  return (
-    <motion.div
-      whileHover={{ y: -1 }}
-      className={`flex w-[320px] items-center gap-3 rounded-2xl px-3.5 py-3 ${
-        isMe ? "bg-primary/15" : "bg-surface"
-      }`}
-    >
-      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/20 text-primary">
-        <FileText size={20} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13.5px] font-medium">{att.name}</div>
-        <div className="mt-0.5 text-[11.5px] uppercase tracking-wider text-muted-foreground">
-          {att.ext} · {att.size}
-        </div>
-      </div>
-      <motion.button
-        whileTap={{ scale: 0.9 }}
-        onClick={async () => {
-          try {
-            await downloadAttachment(att);
-          } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Không thể tải file này.");
-          }
-        }}
-        title="Tải tệp gốc"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background/60 hover:text-foreground"
-        aria-label="Tải"
-      >
-        <Download size={16} />
-      </motion.button>
-    </motion.div>
-  );
-}
-
-function FolderCard({ att }: { att: Extract<Attachment, { kind: "folder" }> }) {
-  const [open, setOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState("");
-
-  const handleDownload = async () => {
-    setDownloading(true);
-    setDownloadError("");
-    try {
-      if (att.sourceFiles?.length) {
-        await downloadFolder(att.sourceFiles, att.name);
-      } else if (att.url) {
-        await downloadAttachment(att);
-      } else {
-        setDownloadError(
-          "Thư mục này không còn khả dụng để tải (dữ liệu gốc đã mất sau khi tải lại trang).",
-        );
-        return;
-      }
-    } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : "Không thể tạo tệp ZIP.");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  return (
-    <motion.div layout className="w-[380px] overflow-hidden rounded-[22px] bg-surface">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
-      >
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/20 text-primary">
-          <Folder size={20} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[14px] font-medium">{att.name}</div>
-          <div className="mt-0.5 text-[11.5px] text-muted-foreground">
-            {att.files ?? att.children?.length ?? 0} tệp · {att.size}
-          </div>
-        </div>
-        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2, ease: EASE }}>
-          <ChevronDown size={18} className="text-muted-foreground" />
-        </motion.div>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.24, ease: EASE }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-border px-2 py-2">
-              {(att.children || []).map((c, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between rounded-xl px-2.5 py-2 text-[13px] hover:bg-background/50"
-                >
-                  <span className="truncate text-foreground/90">{c.name}</span>
-                  <span className="shrink-0 text-[11.5px] text-muted-foreground">{c.size}</span>
-                </div>
-              ))}
-              <button
-                onClick={handleDownload}
-                disabled={downloading}
-                title="Tạo ZIP không nén từ các tệp gốc"
-                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-medium text-primary hover:bg-primary/10"
-              >
-                <Download size={13} /> {downloading ? "Đang chuẩn bị…" : "Tải cả thư mục"}
-              </button>
-              {downloadError && (
-                <p role="alert" className="px-3 pb-1 text-[11px] text-destructive">
-                  {downloadError}
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-/* ================================= COMPOSER ============================== */
-
-/* ============================ MEMBER ACTIONS ============================= */
-
-/* ============================== DETAIL PANEL ============================= */
-
-/* ============================== PREVIEW MODAL ============================= */
-
-/* ============================ CREATE CHAT MODAL =========================== */
